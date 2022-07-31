@@ -2,7 +2,7 @@
   "name": "com.mobelisle.mediaframework",
   "version": "0.0.1",
   "displayName": "Media Framework",
-  "description": "Framework to manage and use media (video/audio/subtitle/misc) in Unity",
+  "description": "Framework for media file (video/audio/subtitle/misc) in Unity",
   "unity": "2020.3",
   "unityRelease": "33f1",
   "keywords": [
