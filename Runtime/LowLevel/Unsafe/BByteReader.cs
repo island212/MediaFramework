@@ -1,6 +1,5 @@
 using System.Diagnostics;
 using System.Runtime.CompilerServices;
-
 using Unity.Collections;
 using Unity.Collections.LowLevel.Unsafe;
 
@@ -42,6 +41,12 @@ namespace MediaFramework.LowLevel.Unsafe
         {
             m_Buffer = m_Head = (byte*)buffer;
             m_Length = length;
+        }
+
+        public BByteReader(in NativeArray<byte> array)
+        {
+            m_Buffer = m_Head = (byte*)array.GetUnsafeReadOnlyPtr();
+            m_Length = array.Length;
         }
 
         public BByteReader(in NativeList<byte> list)
@@ -134,8 +139,6 @@ namespace MediaFramework.LowLevel.Unsafe
 
         public void Seek(int count)
         {
-            CheckForValidIncrement(count);
-
             m_Head += count;
         }
 
@@ -151,12 +154,6 @@ namespace MediaFramework.LowLevel.Unsafe
         {
             if (Index + count > m_Length)
                 throw new System.ArgumentOutOfRangeException();
-        }
-
-        [Conditional("ENABLE_UNITY_COLLECTIONS_CHECKS")]
-        public void CheckForValidIncrement(int increment)
-        {
-            CheckForValidRange(Index + increment);
         }
     }
 }

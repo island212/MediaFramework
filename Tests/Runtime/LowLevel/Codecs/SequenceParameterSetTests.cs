@@ -11,7 +11,7 @@ using UnityEngine.TestTools;
 public class SequenceParameterSetTests
 {
     readonly byte[] spsSmall =
-        {
+    {
         0x67, 0x42, 0xC0, 0x1E, 0x9E, 0x21, 0x81, 0x18, 0x53, 0x4D, 0x40, 0x40,
         0x40, 0x50, 0x00, 0x00, 0x03, 0x00, 0x10, 0x00, 0x00, 0x03, 0x03, 0xC8,
         0xF1, 0x62, 0xEE
@@ -27,6 +27,8 @@ public class SequenceParameterSetTests
     [Test]
     public unsafe void Parse_ValidSPS_AllValueAreEqual()
     {
+        // Need to do a copy because we remove the emulation byte
+        // and we don't want to modifiy the byte[] for other tests
         var spsDataPtr = stackalloc byte[spsSmall.Length];
         fixed (byte* ptr = spsSmall)
             UnsafeUtility.MemCpy(spsDataPtr, ptr, spsSmall.Length);

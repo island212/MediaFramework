@@ -595,12 +595,8 @@ public class BByteReaderTests
     }
 
     [Test]
-    public void Seek_NegativeIndex_ThrowException()
+    public void Seek_NegativeIndex_Pass()
     {
-#if !ENABLE_UNITY_COLLECTIONS_CHECKS
-        Assert.Ignore();
-#endif
-
         Stream.Add(0xD9);
         Stream.Add(0xDB);
         Stream.Add(0x58);
@@ -608,16 +604,14 @@ public class BByteReaderTests
 
         var byteReader = new BByteReader(Stream);
 
-        Assert.Throws<ArgumentOutOfRangeException>(() => { byteReader.Seek(-1); });
+        byteReader.Seek(-1);
+
+        Assert.Pass();
     }
 
     [Test]
-    public void Seek_OneByteOverflow_ThrowException()
+    public void Seek_OneByteOverflow_Pass()
     {
-#if !ENABLE_UNITY_COLLECTIONS_CHECKS
-        Assert.Ignore();
-#endif
-
         Stream.Add(0xD9);
         Stream.Add(0xDB);
         Stream.Add(0x58);
@@ -625,7 +619,9 @@ public class BByteReaderTests
 
         var byteReader = new BByteReader(Stream);
 
-        Assert.Throws<ArgumentOutOfRangeException>(() => { byteReader.Seek(5); });
+        byteReader.Seek(5);
+
+        Assert.Pass();
     }
 
     [Test]
