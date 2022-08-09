@@ -23,54 +23,6 @@ namespace MediaFramework.LowLevel.MP4
         }
     }
 
-    // 4.2 ISO/IEC 14496-12:2015(E)
-    public struct ISOFullBox
-    {
-        //public const int ByteNeeded = 12;
-
-        //[StructLayout(LayoutKind.Sequential, Size = 8)]
-        //public struct VersionFlags
-        //{
-        //    public byte Version;        // 8 bits
-        //    public uint Flags;          // 24 bits
-
-        //    public VersionFlags(byte version, uint flags)
-        //    {
-        //        Version = version;
-        //        Flags = flags;
-        //    }
-        //}
-
-        //public uint Size;               // 32 bits
-        //public ISOBoxType Type;         // 32 bits
-        //public VersionFlags Details;    // 32 bits
-
-        //public ISOFullBox(uint size, ISOBoxType type, VersionFlags details)
-        //{
-        //    Size = size;
-        //    Type = type;
-        //    Details = details;
-        //}
-
-        //public unsafe static ISOFullBox Parse(byte* buffer) => new
-        //(
-        //    BigEndian.ReadUInt32(buffer),
-        //    (ISOBoxType)BigEndian.ReadUInt32(buffer + 4),
-        //    GetDetails(buffer)
-        //);
-
-        //public unsafe static VersionFlags GetDetails(byte* buffer) => new
-        //(
-        //    *(buffer + 8),
-        //    // Peek the version and flags then remove the version
-        //    BigEndian.ReadUInt32(buffer + 8) & 0x00FFFFFF
-        //);
-
-        //public unsafe static byte GetVersion(byte* buffer) => *(buffer + 8);
-
-        //public unsafe static uint GetFlags(byte* buffer) => BigEndian.ReadUInt32(buffer + 8) & 0x00FFFFFF;
-    }
-
     public struct ISODate
     {
         public ulong value;
@@ -84,110 +36,130 @@ namespace MediaFramework.LowLevel.MP4
         public ushort value;
     }
 
-    public struct FixedPoint1616Matrix3x3
-    {
-        public const int ByteNeeded = 36;
-
-        public int3x3 value;
-    }
-
-    public struct FixedPoint1616
-    {
-        public int value;
-
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public double ConvertDouble() => ConvertDouble(value);
-
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public static double ConvertDouble(int value)
-            => value > 0 ? value / 65536.0 : 0;
-    }
-
-    public struct UFixedPoint1616
-    {
-        public uint value;
-
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public double ConvertDouble() => ConvertDouble(value);
-
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public static double ConvertDouble(uint value)
-            => value > 0 ? value / 65536.0 : 0;
-    }
-
-    public struct FixedPoint88
-    {
-        public short value;
-
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public double ConvertDouble() => ConvertDouble(value);
-
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public static double ConvertDouble(short value)
-            => value > 0 ? value / 256.0 : 0;
-    }
-
     public struct SampleGroup
     {
         public uint Count;
         public uint Delta;
     }
 
-    public struct TRAKBox
+    public static class ISOBMFF
     {
-        public TKHDBox TKHD;
-
-        public static MP4Error Read(ref MP4JobContext context, ref TRAKBox track, in ISOBox box)
+        public static MP4Error Read(ref MP4JobContext context, ref BByteReader reader, ISOBox box)
         {
-            MP4BoxUtility.CheckForBoxType(box.Type, ISOBoxType.TRAK);
-            MP4BoxUtility.CheckForValidContext(context);
+            if (context.BoxDepth > 7)
+                return context.LogError(MP4Error.IllegalBoxDepth, $"The box chain is nested too depth");
 
-            var error = context.ValidateBox(box);
-            if (error != MP4Error.None)
-                return error;
+            var error = MP4Error.None;
 
-            int rIdx = context.Reader.Index;
+            context.BoxDepth++;
 
-            uint i = 0;
-            while (i < box.Size)
+            int lastBytePosition = (int)box.Size + reader.Index - ISOBox.ByteNeeded;
+            if(lastBytePosition > reader.Length)
+                return context.LogError(MP4Error.IndexOutOfReaderRange,
+                    $"The {box.Type} box size is {box.Size} and is bigger than the amount of remaining bytes in the reader {reader.Remains}");
+
+            while (reader.Index + ISOBox.ByteNeeded < lastBytePosition)
             {
-                var isoBox = context.Reader.ReadISOBox();
+                var isoBox = reader.ReadISOBox();
 
                 switch (isoBox.Type)
                 {
-                    case ISOBoxType.TKHD:
-                        error = TKHDBox.Read(ref context, ref track.TKHD, isoBox);
+                    case ISOBoxType.MVHD:
+                        error = MVHDBox.Read(ref context, ref reader, isoBox);
                         break;
+                    case ISOBoxType.TRAK:
+                        error = TRAKBox.Read(ref context, ref reader, isoBox);
+                        break;
+                    case ISOBoxType.TKHD:
+                        error = TKHDBox.Read(ref context, ref reader, isoBox);
+                        break;
+                    case ISOBoxType.STBL:
+                    case ISOBoxType.MINF:
                     case ISOBoxType.MDIA:
-                    case ISOBoxType.TREF:
-                    case ISOBoxType.TRGR:
-                    case ISOBoxType.EDTS:
-                    case ISOBoxType.META:
-                        context.Reader.Seek((int)isoBox.Size);
+                        error = Read(ref context, ref reader, isoBox);
                         break;
                     default:
-                        if (context.Policy == Validation.Strict)
-                        {
-                            return context.LogTrackError(MP4Error.InvalidBoxType,
-                                $"The box {isoBox.Type} is either invalid or can't be found inside a TRAK box");
-                        }
-                        context.Reader.Seek((int)isoBox.Size);
+                        reader.Seek((int)isoBox.Size - ISOBox.ByteNeeded);
                         break;
                 }
 
                 if (error != MP4Error.None)
                     return error;
-
-                if (context.Reader.Index - rIdx != box.Size)
-                    return context.LogTrackError(MP4Error.InvalidBoxType, $"The box {isoBox.Type} is either invalid or can't be found inside a TRAK box");
-
-                MP4BoxUtility.CheckIfReaderRead(rIdx, context.Reader, isoBox);
-
-                rIdx = context.Reader.Index;
-                i += isoBox.Size;
             }
 
+            context.BoxDepth--;
+
+            return error;
+        }
+    }
+
+    public struct MVHDBox
+    {
+        public const int Version0 = 108;
+        public const int Version1 = 120;
+
+        public ulong Duration;
+        public uint TimeScale;
+        public uint NextTrackID;
+
+        public static MP4Error Read(ref MP4JobContext context, ref BByteReader reader, in ISOBox box)
+        {
+            if (reader.Remains >= Version0)
+                return context.LogError(MP4Error.IndexOutOfReaderRange, 
+                    $"The {box.Type} box size is {box.Size} and is bigger than the amount of remaining bytes in the reader {reader.Remains}");
+
+            var version = reader.ReadUInt8();
+            reader.Seek(3); // flags
+
+            switch (version)
+            {
+                case 0:
+                    if (box.Size != Version0)
+                        return context.LogError(MP4Error.InvalidBoxSize, $"The MVHD box size for version 0 should be {Version0} and not {box.Size}");
+
+                    reader.Seek(4); // creation_time
+                    reader.Seek(4); // modification_time
+                    context.MVHD.TimeScale = reader.ReadUInt32();
+                    context.MVHD.Duration = reader.ReadUInt32();
+                    break;
+                case 1:
+                    if (box.Size != Version1)
+                        return context.LogError(MP4Error.InvalidBoxSize, $"The MVHD box size for version 1 should be {Version1} and not {box.Size}");
+
+                    reader.Seek(8); // creation_time
+                    reader.Seek(8); // modification_time
+                    context.MVHD.TimeScale = reader.ReadUInt32();
+                    context.MVHD.Duration = reader.ReadUInt64();
+                    break;
+                default:
+                    return context.LogError(MP4Error.InvalidBoxVersion, $"The MVHD box has an invalid version of {version}");
+            }
+
+            reader.Seek(4); // rate
+            reader.Seek(2); // volume  
+            reader.Seek(2); // reserved   
+            reader.Seek(4 * 2); // reserved  
+            reader.Seek(4 * 9); // matrix
+            reader.Seek(4 * 6); // pre_defined 
+            context.MVHD.NextTrackID = reader.ReadUInt32();
+
             return MP4Error.None;
+        }
+    }
+
+    public struct TRAKBox
+    {
+        public TKHDBox TKHD;
+
+        public static MP4Error Read(ref MP4JobContext context, ref BByteReader reader, in ISOBox box)
+        {
+            context.Tracks.Add(new TRAKBox());
+
+            var error = ISOBMFF.Read(ref context, ref reader, box);
+
+            ref var track = ref context.CurrentTrack;
+
+            return error;
         }      
     }
 
@@ -197,64 +169,55 @@ namespace MediaFramework.LowLevel.MP4
         public const int Version1 = 104;
 
         public uint TrackID;
-        public ulong Duration;
 
-        public static MP4Error Read(ref MP4JobContext context, ref TKHDBox tkhd, in ISOBox box)
+        public static MP4Error Read(ref MP4JobContext context, ref BByteReader reader, in ISOBox box)
         {
-            MP4BoxUtility.CheckForBoxType(box.Type, ISOBoxType.TKHD);
-            MP4BoxUtility.CheckForValidContext(context);
+            if (reader.Remains >= Version0)
+                return context.LogError(MP4Error.IndexOutOfReaderRange,
+                    $"The {box.Type} box size is {box.Size} and is bigger than the amount of remaining bytes in the reader {reader.Remains}");
 
-            var error = context.ValidateFullBox(box, Version0, Version1);
-            if (error != MP4Error.None)
-                return error;
+            ref var track = ref context.CurrentTrack;
 
-            var version = context.Reader.ReadUInt8();
-            context.Reader.Seek(3); // flags
+            var version = reader.ReadUInt8();
+            reader.Seek(3); // flags
 
             switch (version)
             {
                 case 0:
                     if (box.Size != Version0)
-                        return context.LogTrackError(MP4Error.InvalidBoxSize, $"The TKHD box size for version 0 should be {Version0} and not {box.Size}");
+                        return context.LogError(MP4Error.InvalidBoxSize, $"The TKHD box size for version 0 should be {Version0} and not {box.Size}");
 
-                    context.Reader.Seek(4); // creation_time
-                    context.Reader.Seek(4); // modification_time
-                    tkhd.TrackID = context.Reader.ReadUInt32();
-                    context.Reader.Seek(4); // reserved
-                    tkhd.Duration = context.Reader.ReadUInt32();
+                    reader.Seek(4); // creation_time
+                    reader.Seek(4); // modification_time
+                    track.TKHD.TrackID = reader.ReadUInt32();
+                    reader.Seek(4); // reserved
+                    reader.Seek(4); // duration
                     break;
                 case 1:
                     if (box.Size != Version1)
-                        return context.LogTrackError(MP4Error.InvalidBoxSize, $"The TKHD box size for version 1 should be {Version1} and not {box.Size}");
+                        return context.LogError(MP4Error.InvalidBoxSize, $"The TKHD box size for version 1 should be {Version1} and not {box.Size}");
 
-                    context.Reader.Seek(8); // creation_time
-                    context.Reader.Seek(8); // modification_time
-                    tkhd.TrackID = context.Reader.ReadUInt32();
-                    context.Reader.Seek(4); // reserved
-                    tkhd.Duration = context.Reader.ReadUInt64();
+                    reader.Seek(8); // creation_time
+                    reader.Seek(8); // modification_time
+                    track.TKHD.TrackID = reader.ReadUInt32();
+                    reader.Seek(4); // reserved
+                    reader.Seek(8); // duration
                     break;
                 default:
-                    return context.LogTrackError(MP4Error.InvalidBoxSize, $"The TKHD box has an invalid version of {version}");
+                    return context.LogError(MP4Error.InvalidBoxVersion, $"The TKHD box has an invalid version of {version}");
             }
 
-            context.Reader.Seek(8); // reserved
-            context.Reader.Seek(2); // layer 
-            context.Reader.Seek(2); // alternate_group  
-            context.Reader.Seek(2); // volume 
-            context.Reader.Seek(2); // reserved
-            context.Reader.Seek(4 * 9); // matrix
-            context.Reader.Seek(4); // width
-            context.Reader.Seek(4); // height
+            reader.Seek(8); // reserved
+            reader.Seek(2); // layer 
+            reader.Seek(2); // alternate_group  
+            reader.Seek(2); // volume 
+            reader.Seek(2); // reserved
+            reader.Seek(4 * 9); // matrix
+            reader.Seek(4); // width
+            reader.Seek(4); // height
 
             return MP4Error.None;
         }
-    }
-
-    public struct MP4JobTrack
-    {
-
-
-        public uint TimeScale;
     }
 
     public static class MP4Math
@@ -282,16 +245,10 @@ namespace MediaFramework.LowLevel.MP4
         }
 
         [Conditional("ENABLE_UNITY_COLLECTIONS_CHECKS")]
-        public static void CheckForValidContext(in MP4JobContext context)
-        {
-
-        }
-
-        [Conditional("ENABLE_UNITY_COLLECTIONS_CHECKS")]
         public static void CheckIfReaderRead(int index, in BByteReader reader, in ISOBox box)
         {
             if(index >= reader.Index)
-                throw new ArgumentException($"Infinite loop detected. The reader didn't read when parsing {box.Type} box");
+                throw new InvalidOperationException($"Infinite loop detected. The reader didn't progress when reading {box.Type} box");
         }
     }
 

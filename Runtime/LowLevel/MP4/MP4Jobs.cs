@@ -6,6 +6,7 @@ using MediaFramework.LowLevel.Codecs;
 using MediaFramework.LowLevel.Unsafe;
 using UnityEngine;
 using System;
+using System.Collections.Generic;
 
 namespace MediaFramework.LowLevel.MP4
 {
@@ -41,167 +42,125 @@ namespace MediaFramework.LowLevel.MP4
         FileNotFound,
         InvalidBoxType,
         InvalidBoxSize,
+        InvalidBoxVersion,
+        InvalidReadSize,
         OverMaxPolicy,
         DuplicateBox,
         IndexOutOfReaderRange,
-
+        IllegalBoxDepth
     }
 
-    public enum Validation
-    {
+    public enum MP4Policy
+    { 
         Soft,
         Strict
     }
 
+    public struct ValidatorLog
+    {
+        public MP4Error Error;
+        public FixedString128Bytes Message;
+    }
+
     public struct MP4Validator : IDisposable
     {
-        public Validation Policy;
-        public UnsafeStream Stream;
-        public UnsafeList<int> Groups;
-        public UnsafeList<MP4Error> Errors;
+        public UnsafeList<int> m_Groups;
+        public UnsafeList<ValidatorLog> m_Logs;
 
-        public UnsafeStream.Writer Logger;
+        public int m_Length;
+        public int m_CurrentGroup;
 
-        public int CurrentGroup;
+        public bool IsCreated => m_Groups.IsCreated && m_Logs.IsCreated;
 
-        public bool HasError => !Errors.IsEmpty;
+        public int Length => m_Length;
 
-        public MP4Validator(Validation policy, Allocator allocator)
+        public bool HasError => m_Length > 0;
+
+        public MP4Validator(int capacity, Allocator allocator)
         {
-            Policy = policy;
-            Stream = new UnsafeStream(1, allocator);
-            Groups = new UnsafeList<int>(16, allocator);
-            Errors = new UnsafeList<MP4Error>(16, allocator);
+            m_Groups = new UnsafeList<int>(capacity, allocator);
+            m_Logs = new UnsafeList<ValidatorLog>(capacity, allocator);
 
-            Logger = Stream.AsWriter();
-
-            CurrentGroup = 0;
+            m_Length = 0;
+            m_CurrentGroup = 0;
         }
+
+        public IEnumerable<ValidatorLog> GetLogs() => m_Logs;
 
         public void NewGroup()
         {
-            CurrentGroup++;
+            m_CurrentGroup++;
         }
 
         public void Report(MP4Error error, FixedString128Bytes message)
         {
-            Groups.Add(CurrentGroup);
-            Errors.Add(error);
-            Logger.Write(message);
+            m_Groups.Add(m_CurrentGroup);
+            m_Logs.Add(new ValidatorLog
+            {
+                Error = error,
+                Message = message
+            });
         }
 
         public void Dispose()
         {
-            Stream.Dispose();
-            Groups.Dispose();
-            Errors.Dispose();
+            m_Logs.Dispose();
         }
     }
 
     public unsafe struct MP4JobContext
     {
-        public BByteReader Reader;
-        public MP4Validator Validator;
+        public int BoxDepth;
 
-        public int TrackIndex;
+        public MVHDBox MVHD;
+        public UnsafeList<TRAKBox> Tracks;
 
-        public Validation Policy => Validator.Policy;
+        public JobLogger Logger;
+
+        public ref TRAKBox CurrentTrack => ref Tracks.ElementAt(Tracks.Length - 1);
 
         public MP4Error LogError(MP4Error error, in FixedString128Bytes message)
         {
-            Validator.Report(error, $"{error}: {message}");
-            return error;
-        }
-
-        public MP4Error LogTrackError(MP4Error error, in FixedString128Bytes message)
-        {
-            if (TrackIndex > 0)
-                Validator.Report(error, $"{error}: Track#{TrackIndex} - {message}");
-            else
-                Validator.Report(error, $"{error}: Invalid Track - {message}");
+            Logger.Log(new JobLog
+            {
+                Type = LogType.Error,
+                MetaData1 = Tracks.Length,
+                MetaData2 = (int)error,
+            }, message);
 
             return error;
-        }
-
-        public MP4Error ValidateBox(in ISOBox box)
-        {
-            if(box.Size < ISOBox.ByteNeeded)
-                return LogError(MP4Error.InvalidBoxSize, $"The {box.Type} box size is {box.Size} but need to be greater or equal to 8");
-
-            if (Reader.Index + box.Size - ISOBox.ByteNeeded > Reader.Length)
-                return LogError(MP4Error.IndexOutOfReaderRange, $"The {box.Type} box size is {box.Size} and was moving outside the reader buffer. Index={Reader.Index}, Length={Reader.Length}");
-
-            return MP4Error.None;
-        }
-
-        public MP4Error ValidateFullBox(in ISOBox box, int size)
-        {
-            if (box.Size == size)
-                return LogError(MP4Error.InvalidBoxSize, $"The {box.Type} box size is {box.Size} but can only be {size}");
-
-            return ValidateBox(box);
-        }
-
-        public MP4Error ValidateFullBox(in ISOBox box, int version0, int version1)
-        {
-            if (box.Size != version0 && box.Size != version1)
-                return LogError(MP4Error.InvalidBoxSize, $"The {box.Type} box size is {box.Size} but can only be either {version0} for version 0 or {version1} for version 1");
-
-            return ValidateBox(box);
         }
     }
 
     public struct MP4ParseJob : IJob
     {
+        public MP4Policy Policy;
         public BByteReader Reader;
-        public MP4Validator Validator;
 
         public NativeReference<BlobAssetReference<MP4Header>> Header;
 
         public unsafe void Execute()
         {
             var context = new MP4JobContext();
-            context.Reader = Reader;
-            context.Validator = Validator;
-            context.TrackIndex = -1;
+            context.Logger = new JobLogger(16, Allocator.TempJob);
+            context.Tracks = new UnsafeList<TRAKBox>(4, Allocator.Temp);
 
             var moovBox = Reader.ReadISOBox();
 
-            MP4BoxUtility.CheckForBoxType(moovBox.Type, ISOBoxType.MOOV);
+            ISOBMFF.Read(ref context, ref Reader, moovBox);
 
-            var tracks = new UnsafeList<TRAKBox>(4, Allocator.Temp);
+            if (Policy == MP4Policy.Strict)
+                goto clean;
 
-            int index = Reader.Index;
-            while (index < Reader.Length)
-            {
-                var isoBox = Reader.ReadISOBox();
-
-                switch (isoBox.Type)
-                {
-                    case ISOBoxType.TRAK:
-                        context.TrackIndex = tracks.Length;
-                        context.Validator.NewGroup();
-                        tracks.Add(new TRAKBox());
-
-                        TRAKBox.Read(ref context, ref tracks.ElementAt(context.TrackIndex), isoBox);
-                        break;
-                    default:
-                        Reader.Seek((int)isoBox.Size - ISOBox.ByteNeeded);
-                        break;
-                }
-
-                MP4BoxUtility.CheckIfReaderRead(index, context.Reader, isoBox);
-
-                index = Reader.Index;
-            }
-
-            if (context.Policy == Validation.Strict && context.Validator.HasError)
-                return;
-
-            using var builder = new BlobBuilder(Allocator.Temp);
+            var builder = new BlobBuilder(Allocator.Temp);
             ref var header = ref builder.ConstructRoot<MP4Header>();
 
             var videos = builder.Allocate(ref header.Videos, 2);
+
+            builder.Dispose();
+
+        clean:
+            context.Tracks.Dispose();
         }
     }
 }

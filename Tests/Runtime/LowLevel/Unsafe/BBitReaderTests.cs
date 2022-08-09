@@ -3,536 +3,539 @@ using NUnit.Framework;
 using Unity.Collections;
 using Unity.Collections.LowLevel.Unsafe;
 
-public class BBitReaderTests
+namespace Unsafe
 {
-    private const int StreamSize = 16;
-
-    private NativeList<byte> Stream;
-
-    [SetUp]
-    public void SetUp()
+    public class BBitReaderTests
     {
-        Stream = new NativeList<byte>(StreamSize, Allocator.Temp);
-    }
+        private const int StreamSize = 16;
 
-    [TearDown]
-    public void TearDown()
-    {
-        Stream.Clear();
-    }
+        private NativeList<byte> Stream;
 
-    [OneTimeTearDown]
-    public void OneTimeTearDown()
-    {
-        Stream.Dispose();
-    }
-
-    [Test]
-    public void Constructor_ValidBByteReader_ValidState()
-    {
-        Stream.Add(0x59);
-        Stream.Add(0xF9);
-        Stream.Add(0xC3);
-
-        var bbyteReader = new BByteReader(Stream);
-
-        var bitReader = new BBitReader(bbyteReader);
-
-        unsafe
+        [SetUp]
+        public void SetUp()
         {
-            Assert.IsTrue(bitReader.m_Buffer == bbyteReader.m_Head, "Buffer");
-            Assert.AreEqual(0, bitReader.Index, "Index");
-            Assert.AreEqual(24, bitReader.Length, "Length");
-            Assert.IsTrue(bitReader.IsValid, "IsValid");
+            Stream = new NativeList<byte>(StreamSize, Allocator.Temp);
         }
-    }
 
-    [Test]
-    public void Constructor_InvalidBByteReader_InvalidState()
-    {
-        var bbyteReader = new BByteReader();
-
-        var bitReader = new BBitReader(bbyteReader);
-
-        unsafe
+        [TearDown]
+        public void TearDown()
         {
-            Assert.IsTrue(bitReader.m_Buffer == null, "Buffer");
-            Assert.AreEqual(0, bitReader.Index, "Index");
-            Assert.AreEqual(0, bitReader.Length, "Length");
-            Assert.IsFalse(bitReader.IsValid, "IsValid");
+            Stream.Clear();
         }
-    }
 
-    [Test]
-    public void Constructor_ValidNativeList_ValidState()
-    {
-        Stream.Add(0x59);
-        Stream.Add(0xF9);
-        Stream.Add(0xC3);
-
-        var bitReader = new BBitReader(Stream);
-
-        unsafe
+        [OneTimeTearDown]
+        public void OneTimeTearDown()
         {
-            Assert.IsTrue(bitReader.m_Buffer == Stream.GetUnsafeReadOnlyPtr(), "Buffer");
-            Assert.AreEqual(0, bitReader.Index, "Index");
-            Assert.AreEqual(24, bitReader.Length, "Length");
-            Assert.IsTrue(bitReader.IsValid, "IsValid");
+            Stream.Dispose();
         }
-    }
 
-    [Test]
-    public void Constructor_ValidPtrAndLength_ValidState()
-    {
-        Stream.Add(0x59);
-        Stream.Add(0xF9);
-        Stream.Add(0xC3);
-
-        unsafe
+        [Test]
+        public void Constructor_ValidBByteReader_ValidState()
         {
-            var ptr = (byte*)Stream.GetUnsafeReadOnlyPtr();
+            Stream.Add(0x59);
+            Stream.Add(0xF9);
+            Stream.Add(0xC3);
 
-            var bitReader = new BBitReader(ptr, Stream.Length);
+            var bbyteReader = new BByteReader(Stream);
 
-            Assert.IsTrue(bitReader.m_Buffer == ptr, "Buffer");
-            Assert.AreEqual(0, bitReader.Index, "Index");
-            Assert.AreEqual(24, bitReader.Length, "Length");
-            Assert.IsTrue(bitReader.IsValid, "IsValid");
+            var bitReader = new BBitReader(bbyteReader);
+
+            unsafe
+            {
+                Assert.IsTrue(bitReader.m_Buffer == bbyteReader.m_Head, "Buffer");
+                Assert.AreEqual(0, bitReader.Index, "Index");
+                Assert.AreEqual(24, bitReader.Length, "Length");
+                Assert.IsTrue(bitReader.IsValid, "IsValid");
+            }
         }
-    }
 
-    [Test]
-    public void Constructor_InvalidPtrAndLength_InvalidState()
-    {
-        unsafe
+        [Test]
+        public void Constructor_InvalidBByteReader_InvalidState()
         {
-            var bitReader = new BBitReader(null, -1);
+            var bbyteReader = new BByteReader();
 
-            Assert.IsTrue(bitReader.m_Buffer == null, "Buffer");
-            Assert.AreEqual(0, bitReader.Index, "Index");
-            Assert.AreEqual(-8, bitReader.Length, "Length");
-            Assert.IsFalse(bitReader.IsValid, "IsValid");
+            var bitReader = new BBitReader(bbyteReader);
+
+            unsafe
+            {
+                Assert.IsTrue(bitReader.m_Buffer == null, "Buffer");
+                Assert.AreEqual(0, bitReader.Index, "Index");
+                Assert.AreEqual(0, bitReader.Length, "Length");
+                Assert.IsFalse(bitReader.IsValid, "IsValid");
+            }
         }
-    }
-
-    [Test]
-    public void HasEnoughBits_EqualLength_ReturnTrue()
-    {
-        Stream.Add(0x59);
-        Stream.Add(0xF9);
-        Stream.Add(0xC3);
-
-        var bitReader = new BBitReader(Stream);
-
-        Assert.IsTrue(bitReader.HasEnoughBits(24), "HasEnoughBits");
-    }
-
-    [Test]
-    public void HasEnoughBits_LessThanLength_ReturnTrue()
-    {
-        Stream.Add(0x59);
-        Stream.Add(0xF9);
-        Stream.Add(0xC3);
-
-        var bitReader = new BBitReader(Stream);
-
-        Assert.IsTrue(bitReader.HasEnoughBits(23), "HasEnoughBits");
-    }
-
-    [Test]
-    public void HasEnoughBits_GreaterThanLength_ReturnFalse()
-    {
-        Stream.Add(0x59);
-        Stream.Add(0xF9);
-        Stream.Add(0xC3);
-
-        var bitReader = new BBitReader(Stream);
-
-        Assert.IsFalse(bitReader.HasEnoughBits(25), "HasEnoughBits");
-    }
-
-    [Test]
-    public void ReadBitWithoutCheck_ReadAllBuffer_Return0_0_0_0_1_0_1_1()
-    {
-        Stream.Add(0x0B);
-
-        var bitReader = new BBitReader(Stream);
-
-        Assert.AreEqual(0, bitReader.ReadBitWithoutCheck(), "Bit 1");
-        Assert.AreEqual(0, bitReader.ReadBitWithoutCheck(), "Bit 2");
-        Assert.AreEqual(0, bitReader.ReadBitWithoutCheck(), "Bit 3");
-        Assert.AreEqual(0, bitReader.ReadBitWithoutCheck(), "Bit 4");
-        Assert.AreEqual(1, bitReader.ReadBitWithoutCheck(), "Bit 5");
-        Assert.AreEqual(0, bitReader.ReadBitWithoutCheck(), "Bit 6");
-        Assert.AreEqual(1, bitReader.ReadBitWithoutCheck(), "Bit 7");
-        Assert.AreEqual(1, bitReader.ReadBitWithoutCheck(), "Bit 8");
-    }
-
-    [Test]
-    public void TryReadBits_ReadAllBufferOneBit_Return0_0_0_0_1_0_1_1()
-    {
-        Stream.Add(0x0B);
-
-        var bitReader = new BBitReader(Stream);
-
-        uint bit;
-        ReaderError error;
 
-        error = bitReader.TryReadBits(1, out bit);
-        Assert.AreEqual(ReaderError.None, error, "Bit 1 error");
-        Assert.AreEqual(0, bit, "Bit 1");
+        [Test]
+        public void Constructor_ValidNativeList_ValidState()
+        {
+            Stream.Add(0x59);
+            Stream.Add(0xF9);
+            Stream.Add(0xC3);
+
+            var bitReader = new BBitReader(Stream);
+
+            unsafe
+            {
+                Assert.IsTrue(bitReader.m_Buffer == Stream.GetUnsafeReadOnlyPtr(), "Buffer");
+                Assert.AreEqual(0, bitReader.Index, "Index");
+                Assert.AreEqual(24, bitReader.Length, "Length");
+                Assert.IsTrue(bitReader.IsValid, "IsValid");
+            }
+        }
+
+        [Test]
+        public void Constructor_ValidPtrAndLength_ValidState()
+        {
+            Stream.Add(0x59);
+            Stream.Add(0xF9);
+            Stream.Add(0xC3);
+
+            unsafe
+            {
+                var ptr = (byte*)Stream.GetUnsafeReadOnlyPtr();
+
+                var bitReader = new BBitReader(ptr, Stream.Length);
+
+                Assert.IsTrue(bitReader.m_Buffer == ptr, "Buffer");
+                Assert.AreEqual(0, bitReader.Index, "Index");
+                Assert.AreEqual(24, bitReader.Length, "Length");
+                Assert.IsTrue(bitReader.IsValid, "IsValid");
+            }
+        }
+
+        [Test]
+        public void Constructor_InvalidPtrAndLength_InvalidState()
+        {
+            unsafe
+            {
+                var bitReader = new BBitReader(null, -1);
+
+                Assert.IsTrue(bitReader.m_Buffer == null, "Buffer");
+                Assert.AreEqual(0, bitReader.Index, "Index");
+                Assert.AreEqual(-8, bitReader.Length, "Length");
+                Assert.IsFalse(bitReader.IsValid, "IsValid");
+            }
+        }
+
+        [Test]
+        public void HasEnoughBits_EqualLength_ReturnTrue()
+        {
+            Stream.Add(0x59);
+            Stream.Add(0xF9);
+            Stream.Add(0xC3);
+
+            var bitReader = new BBitReader(Stream);
+
+            Assert.IsTrue(bitReader.HasEnoughBits(24), "HasEnoughBits");
+        }
+
+        [Test]
+        public void HasEnoughBits_LessThanLength_ReturnTrue()
+        {
+            Stream.Add(0x59);
+            Stream.Add(0xF9);
+            Stream.Add(0xC3);
+
+            var bitReader = new BBitReader(Stream);
+
+            Assert.IsTrue(bitReader.HasEnoughBits(23), "HasEnoughBits");
+        }
+
+        [Test]
+        public void HasEnoughBits_GreaterThanLength_ReturnFalse()
+        {
+            Stream.Add(0x59);
+            Stream.Add(0xF9);
+            Stream.Add(0xC3);
+
+            var bitReader = new BBitReader(Stream);
+
+            Assert.IsFalse(bitReader.HasEnoughBits(25), "HasEnoughBits");
+        }
+
+        [Test]
+        public void ReadBitWithoutCheck_ReadAllBuffer_Return0_0_0_0_1_0_1_1()
+        {
+            Stream.Add(0x0B);
+
+            var bitReader = new BBitReader(Stream);
+
+            Assert.AreEqual(0, bitReader.ReadBitWithoutCheck(), "Bit 1");
+            Assert.AreEqual(0, bitReader.ReadBitWithoutCheck(), "Bit 2");
+            Assert.AreEqual(0, bitReader.ReadBitWithoutCheck(), "Bit 3");
+            Assert.AreEqual(0, bitReader.ReadBitWithoutCheck(), "Bit 4");
+            Assert.AreEqual(1, bitReader.ReadBitWithoutCheck(), "Bit 5");
+            Assert.AreEqual(0, bitReader.ReadBitWithoutCheck(), "Bit 6");
+            Assert.AreEqual(1, bitReader.ReadBitWithoutCheck(), "Bit 7");
+            Assert.AreEqual(1, bitReader.ReadBitWithoutCheck(), "Bit 8");
+        }
+
+        [Test]
+        public void TryReadBits_ReadAllBufferOneBit_Return0_0_0_0_1_0_1_1()
+        {
+            Stream.Add(0x0B);
+
+            var bitReader = new BBitReader(Stream);
 
-        error = bitReader.TryReadBits(1, out bit);
-        Assert.AreEqual(ReaderError.None, error, "Bit 2 error");
-        Assert.AreEqual(0, bit, "Bit 2");
+            uint bit;
+            ReaderError error;
 
-        error = bitReader.TryReadBits(1, out bit);
-        Assert.AreEqual(ReaderError.None, error, "Bit 3 error");
-        Assert.AreEqual(0, bit, "Bit 3");
+            error = bitReader.TryReadBits(1, out bit);
+            Assert.AreEqual(ReaderError.None, error, "Bit 1 error");
+            Assert.AreEqual(0, bit, "Bit 1");
 
-        error = bitReader.TryReadBits(1, out bit);
-        Assert.AreEqual(ReaderError.None, error, "Bit 4 error");
-        Assert.AreEqual(0, bit, "Bit 4");
+            error = bitReader.TryReadBits(1, out bit);
+            Assert.AreEqual(ReaderError.None, error, "Bit 2 error");
+            Assert.AreEqual(0, bit, "Bit 2");
 
-        error = bitReader.TryReadBits(1, out bit);
-        Assert.AreEqual(ReaderError.None, error, "Bit 5 error");
-        Assert.AreEqual(1, bit, "Bit 5");
+            error = bitReader.TryReadBits(1, out bit);
+            Assert.AreEqual(ReaderError.None, error, "Bit 3 error");
+            Assert.AreEqual(0, bit, "Bit 3");
 
-        error = bitReader.TryReadBits(1, out bit);
-        Assert.AreEqual(ReaderError.None, error, "Bit 6 error");
-        Assert.AreEqual(0, bit, "Bit 6");
+            error = bitReader.TryReadBits(1, out bit);
+            Assert.AreEqual(ReaderError.None, error, "Bit 4 error");
+            Assert.AreEqual(0, bit, "Bit 4");
 
-        error = bitReader.TryReadBits(1, out bit);
-        Assert.AreEqual(ReaderError.None, error, "Bit 7 error");
-        Assert.AreEqual(1, bit, "Bit 7");
+            error = bitReader.TryReadBits(1, out bit);
+            Assert.AreEqual(ReaderError.None, error, "Bit 5 error");
+            Assert.AreEqual(1, bit, "Bit 5");
 
-        error = bitReader.TryReadBits(1, out bit);
-        Assert.AreEqual(ReaderError.None, error, "Bit 8 error");
-        Assert.AreEqual(1, bit, "Bit 8");
-    }
+            error = bitReader.TryReadBits(1, out bit);
+            Assert.AreEqual(ReaderError.None, error, "Bit 6 error");
+            Assert.AreEqual(0, bit, "Bit 6");
 
-    [Test]
-    public void TryReadBits_ReadAllBufferInUnevenNumber_Return1_1_11_59()
-    {
-        Stream.Add(0x95);
-        Stream.Add(0xBB);
+            error = bitReader.TryReadBits(1, out bit);
+            Assert.AreEqual(ReaderError.None, error, "Bit 7 error");
+            Assert.AreEqual(1, bit, "Bit 7");
 
-        var bitReader = new BBitReader(Stream);
+            error = bitReader.TryReadBits(1, out bit);
+            Assert.AreEqual(ReaderError.None, error, "Bit 8 error");
+            Assert.AreEqual(1, bit, "Bit 8");
+        }
 
-        uint bit;
-        ReaderError error;
+        [Test]
+        public void TryReadBits_ReadAllBufferInUnevenNumber_Return1_1_11_59()
+        {
+            Stream.Add(0x95);
+            Stream.Add(0xBB);
 
-        error = bitReader.TryReadBits(1, out bit);
-        Assert.AreEqual(ReaderError.None, error, "1 Bit error");
-        Assert.AreEqual(1, bit, "1 Bit");
+            var bitReader = new BBitReader(Stream);
 
-        error = bitReader.TryReadBits(3, out bit);
-        Assert.AreEqual(ReaderError.None, error, "3 Bits error");
-        Assert.AreEqual(1, bit, "3 Bits");
+            uint bit;
+            ReaderError error;
 
-        error = bitReader.TryReadBits(5, out bit);
-        Assert.AreEqual(ReaderError.None, error, "5 Bits error");
-        Assert.AreEqual(11, bit, "5 Bits");
+            error = bitReader.TryReadBits(1, out bit);
+            Assert.AreEqual(ReaderError.None, error, "1 Bit error");
+            Assert.AreEqual(1, bit, "1 Bit");
 
-        error = bitReader.TryReadBits(7, out bit);
-        Assert.AreEqual(ReaderError.None, error, "7 Bits error");
-        Assert.AreEqual(59, bit, "7 Bits");
-    }
+            error = bitReader.TryReadBits(3, out bit);
+            Assert.AreEqual(ReaderError.None, error, "3 Bits error");
+            Assert.AreEqual(1, bit, "3 Bits");
 
-    [Test]
-    public void TryReadBits_ReadOverBufferLength_ReturnError()
-    {
-        Stream.Add(0x95);
-        Stream.Add(0xBB);
+            error = bitReader.TryReadBits(5, out bit);
+            Assert.AreEqual(ReaderError.None, error, "5 Bits error");
+            Assert.AreEqual(11, bit, "5 Bits");
 
-        var bitReader = new BBitReader(Stream);
+            error = bitReader.TryReadBits(7, out bit);
+            Assert.AreEqual(ReaderError.None, error, "7 Bits error");
+            Assert.AreEqual(59, bit, "7 Bits");
+        }
 
-        uint bit;
-        ReaderError error;
+        [Test]
+        public void TryReadBits_ReadOverBufferLength_ReturnError()
+        {
+            Stream.Add(0x95);
+            Stream.Add(0xBB);
 
-        error = bitReader.TryReadBits(17, out bit);
-        Assert.AreEqual(ReaderError.OutOfRange, error, "Error");
-    }
+            var bitReader = new BBitReader(Stream);
 
-    [Test]
-    public void TryReadBits_ReadZeroBit_Return0()
-    {
-        Stream.Add(0x0B);
+            uint bit;
+            ReaderError error;
 
-        var bitReader = new BBitReader(Stream);
+            error = bitReader.TryReadBits(17, out bit);
+            Assert.AreEqual(ReaderError.OutOfRange, error, "Error");
+        }
 
-        uint bit;
-        ReaderError error;
+        [Test]
+        public void TryReadBits_ReadZeroBit_Return0()
+        {
+            Stream.Add(0x0B);
 
-        error = bitReader.TryReadBits(0, out bit);
-        Assert.AreEqual(ReaderError.None, error, "Error");
-        Assert.AreEqual(0, bit, "Value");
-    }
+            var bitReader = new BBitReader(Stream);
 
-    [Test]
-    public void TryReadBool_ReadOne_ReturnTrue()
-    {
-        Stream.Add(0x80);
+            uint bit;
+            ReaderError error;
 
-        var bitReader = new BBitReader(Stream);
+            error = bitReader.TryReadBits(0, out bit);
+            Assert.AreEqual(ReaderError.None, error, "Error");
+            Assert.AreEqual(0, bit, "Value");
+        }
 
-        bool condition;
-        ReaderError error;
+        [Test]
+        public void TryReadBool_ReadOne_ReturnTrue()
+        {
+            Stream.Add(0x80);
 
-        error = bitReader.TryReadBool(out condition);
-        Assert.AreEqual(ReaderError.None, error, "Error");
-        Assert.AreEqual(true, condition, "Value");
-    }
+            var bitReader = new BBitReader(Stream);
 
-    [Test]
-    public void TryReadBool_ReadOne_ReturnFalse()
-    {
-        Stream.Add(0x00);
+            bool condition;
+            ReaderError error;
 
-        var bitReader = new BBitReader(Stream);
+            error = bitReader.TryReadBool(out condition);
+            Assert.AreEqual(ReaderError.None, error, "Error");
+            Assert.AreEqual(true, condition, "Value");
+        }
 
-        bool condition;
-        ReaderError error;
+        [Test]
+        public void TryReadBool_ReadOne_ReturnFalse()
+        {
+            Stream.Add(0x00);
 
-        error = bitReader.TryReadBool(out condition);
-        Assert.AreEqual(ReaderError.None, error, "Error");
-        Assert.AreEqual(false, condition, "Value");
-    }
+            var bitReader = new BBitReader(Stream);
 
-    [Test]
-    public void TryReadBool_ReadOverBufferLength_ReturnError()
-    {
-        Stream.Add(0x00);
+            bool condition;
+            ReaderError error;
 
-        var bitReader = new BBitReader(Stream);
+            error = bitReader.TryReadBool(out condition);
+            Assert.AreEqual(ReaderError.None, error, "Error");
+            Assert.AreEqual(false, condition, "Value");
+        }
 
-        bitReader.m_Index = 8;
+        [Test]
+        public void TryReadBool_ReadOverBufferLength_ReturnError()
+        {
+            Stream.Add(0x00);
 
-        bool condition;
-        ReaderError error;
+            var bitReader = new BBitReader(Stream);
 
-        error = bitReader.TryReadBool(out condition);
-        Assert.AreEqual(ReaderError.OutOfRange, error, "Error");
-    }
+            bitReader.m_Index = 8;
 
-    [Test]
-    public void TryReadUExpGolomb_ReadOne_Return4()
-    {
-        Stream.Add(0x28);
+            bool condition;
+            ReaderError error;
 
-        var bitReader = new BBitReader(Stream);
+            error = bitReader.TryReadBool(out condition);
+            Assert.AreEqual(ReaderError.OutOfRange, error, "Error");
+        }
 
-        uint value;
-        ReaderError error;
+        [Test]
+        public void TryReadUExpGolomb_ReadOne_Return4()
+        {
+            Stream.Add(0x28);
 
-        error = bitReader.TryReadUExpGolomb(out value);
-        Assert.AreEqual(ReaderError.None, error, "Error");
-        Assert.AreEqual(4, value, "Value");
-    }
+            var bitReader = new BBitReader(Stream);
 
-    [Test]
-    public void TryReadUExpGolomb_ReadOne_Return0()
-    {
-        Stream.Add(0x80);
+            uint value;
+            ReaderError error;
 
-        var bitReader = new BBitReader(Stream);
+            error = bitReader.TryReadUExpGolomb(out value);
+            Assert.AreEqual(ReaderError.None, error, "Error");
+            Assert.AreEqual(4, value, "Value");
+        }
 
-        uint value;
-        ReaderError error;
+        [Test]
+        public void TryReadUExpGolomb_ReadOne_Return0()
+        {
+            Stream.Add(0x80);
 
-        error = bitReader.TryReadUExpGolomb(out value);
-        Assert.AreEqual(ReaderError.None, error, "Error");
-        Assert.AreEqual(0, value, "Value");
-    }
+            var bitReader = new BBitReader(Stream);
 
-    [Test]
-    public void TryReadUExpGolomb_ReadOneLongerThan32Bits_ReturnOverflow()
-    {
-        Stream.Add(0x00);
-        Stream.Add(0x00);
-        Stream.Add(0x00);
-        Stream.Add(0x00);
-        Stream.Add(0x01);
-        Stream.Add(0x00);
-        Stream.Add(0x00);
-        Stream.Add(0x00);
-        Stream.Add(0x00);
+            uint value;
+            ReaderError error;
 
-        var bitReader = new BBitReader(Stream);
+            error = bitReader.TryReadUExpGolomb(out value);
+            Assert.AreEqual(ReaderError.None, error, "Error");
+            Assert.AreEqual(0, value, "Value");
+        }
 
-        bitReader.m_Index = 7;
+        [Test]
+        public void TryReadUExpGolomb_ReadOneLongerThan32Bits_ReturnOverflow()
+        {
+            Stream.Add(0x00);
+            Stream.Add(0x00);
+            Stream.Add(0x00);
+            Stream.Add(0x00);
+            Stream.Add(0x01);
+            Stream.Add(0x00);
+            Stream.Add(0x00);
+            Stream.Add(0x00);
+            Stream.Add(0x00);
 
-        uint value;
-        ReaderError error;
+            var bitReader = new BBitReader(Stream);
 
-        error = bitReader.TryReadUExpGolomb(out value);
-        Assert.AreEqual(ReaderError.Overflow, error, "Error");
-    }
+            bitReader.m_Index = 7;
 
-    [Test]
-    public void TryReadUExpGolomb_ReadOneNoBitLeft_ReturnOutOfRange()
-    {
-        Stream.Add(0x00);
+            uint value;
+            ReaderError error;
 
-        var bitReader = new BBitReader(Stream);
+            error = bitReader.TryReadUExpGolomb(out value);
+            Assert.AreEqual(ReaderError.Overflow, error, "Error");
+        }
 
-        bitReader.m_Index = 8;
+        [Test]
+        public void TryReadUExpGolomb_ReadOneNoBitLeft_ReturnOutOfRange()
+        {
+            Stream.Add(0x00);
 
-        uint value;
-        ReaderError error;
+            var bitReader = new BBitReader(Stream);
 
-        error = bitReader.TryReadUExpGolomb(out value);
-        Assert.AreEqual(ReaderError.OutOfRange, error, "Error");
-    }
+            bitReader.m_Index = 8;
 
-    [Test]
-    public void TryReadUExpGolomb_ReadOneWithoutEnoughBit_ReturnOutOfRange()
-    {
-        Stream.Add(0x00);
-        Stream.Add(0x40);
+            uint value;
+            ReaderError error;
 
-        var bitReader = new BBitReader(Stream);
+            error = bitReader.TryReadUExpGolomb(out value);
+            Assert.AreEqual(ReaderError.OutOfRange, error, "Error");
+        }
 
-        uint value;
-        ReaderError error;
+        [Test]
+        public void TryReadUExpGolomb_ReadOneWithoutEnoughBit_ReturnOutOfRange()
+        {
+            Stream.Add(0x00);
+            Stream.Add(0x40);
 
-        error = bitReader.TryReadUExpGolomb(out value);
-        Assert.AreEqual(ReaderError.OutOfRange, error, "Error");
-    }
+            var bitReader = new BBitReader(Stream);
 
-    [Test]
-    public void TryReadUExpGolomb_ReadOneWithEnoughBit_Return7()
-    {
-        Stream.Add(0x00);
-        Stream.Add(0x80);
+            uint value;
+            ReaderError error;
 
-        var bitReader = new BBitReader(Stream);
+            error = bitReader.TryReadUExpGolomb(out value);
+            Assert.AreEqual(ReaderError.OutOfRange, error, "Error");
+        }
 
-        bitReader.m_Index = 1;
+        [Test]
+        public void TryReadUExpGolomb_ReadOneWithEnoughBit_Return7()
+        {
+            Stream.Add(0x00);
+            Stream.Add(0x80);
 
-        uint value;
-        ReaderError error;
+            var bitReader = new BBitReader(Stream);
 
-        error = bitReader.TryReadUExpGolomb(out value);
-        Assert.AreEqual(ReaderError.None, error, "Error");
-        Assert.AreEqual(127, value, "Value");
-    }
+            bitReader.m_Index = 1;
 
-    [Test]
-    public void TryReadSExpGolomb_ReadOne_ReturnMinus2()
-    {
-        Stream.Add(0x28);
+            uint value;
+            ReaderError error;
 
-        var bitReader = new BBitReader(Stream);
+            error = bitReader.TryReadUExpGolomb(out value);
+            Assert.AreEqual(ReaderError.None, error, "Error");
+            Assert.AreEqual(127, value, "Value");
+        }
 
-        int value;
-        ReaderError error;
+        [Test]
+        public void TryReadSExpGolomb_ReadOne_ReturnMinus2()
+        {
+            Stream.Add(0x28);
 
-        error = bitReader.TryReadSExpGolomb(out value);
-        Assert.AreEqual(ReaderError.None, error, "Error");
-        Assert.AreEqual(-2, value, "Value");
-    }
+            var bitReader = new BBitReader(Stream);
 
-    [Test]
-    public void TryReadSExpGolomb_ReadOne_Return2()
-    {
-        Stream.Add(0x20);
+            int value;
+            ReaderError error;
 
-        var bitReader = new BBitReader(Stream);
+            error = bitReader.TryReadSExpGolomb(out value);
+            Assert.AreEqual(ReaderError.None, error, "Error");
+            Assert.AreEqual(-2, value, "Value");
+        }
 
-        int value;
-        ReaderError error;
+        [Test]
+        public void TryReadSExpGolomb_ReadOne_Return2()
+        {
+            Stream.Add(0x20);
 
-        error = bitReader.TryReadSExpGolomb(out value);
-        Assert.AreEqual(ReaderError.None, error, "Error");
-        Assert.AreEqual(2, value, "Value");
-    }
+            var bitReader = new BBitReader(Stream);
 
-    [Test]
-    public void TryReadSExpGolomb_ReadOne_Return0()
-    {
-        Stream.Add(0x80);
+            int value;
+            ReaderError error;
 
-        var bitReader = new BBitReader(Stream);
+            error = bitReader.TryReadSExpGolomb(out value);
+            Assert.AreEqual(ReaderError.None, error, "Error");
+            Assert.AreEqual(2, value, "Value");
+        }
 
-        int value;
-        ReaderError error;
+        [Test]
+        public void TryReadSExpGolomb_ReadOne_Return0()
+        {
+            Stream.Add(0x80);
 
-        error = bitReader.TryReadSExpGolomb(out value);
-        Assert.AreEqual(ReaderError.None, error, "Error");
-        Assert.AreEqual(0, value, "Value");
-    }
+            var bitReader = new BBitReader(Stream);
 
-    [Test]
-    public void TryReadSExpGolomb_ReadOneLongerThan32Bits_ReturnOverflow()
-    {
-        Stream.Add(0x00);
-        Stream.Add(0x00);
-        Stream.Add(0x00);
-        Stream.Add(0x00);
-        Stream.Add(0x01);
-        Stream.Add(0x00);
-        Stream.Add(0x00);
-        Stream.Add(0x00);
-        Stream.Add(0x00);
+            int value;
+            ReaderError error;
 
-        var bitReader = new BBitReader(Stream);
+            error = bitReader.TryReadSExpGolomb(out value);
+            Assert.AreEqual(ReaderError.None, error, "Error");
+            Assert.AreEqual(0, value, "Value");
+        }
 
-        bitReader.m_Index = 7;
+        [Test]
+        public void TryReadSExpGolomb_ReadOneLongerThan32Bits_ReturnOverflow()
+        {
+            Stream.Add(0x00);
+            Stream.Add(0x00);
+            Stream.Add(0x00);
+            Stream.Add(0x00);
+            Stream.Add(0x01);
+            Stream.Add(0x00);
+            Stream.Add(0x00);
+            Stream.Add(0x00);
+            Stream.Add(0x00);
 
-        int value;
-        ReaderError error;
+            var bitReader = new BBitReader(Stream);
 
-        error = bitReader.TryReadSExpGolomb(out value);
-        Assert.AreEqual(ReaderError.Overflow, error, "Error");
-    }
+            bitReader.m_Index = 7;
 
-    [Test]
-    public void TryReadSExpGolomb_ReadOneNoBitLeft_ReturnOutOfRange()
-    {
-        Stream.Add(0x00);
+            int value;
+            ReaderError error;
 
-        var bitReader = new BBitReader(Stream);
+            error = bitReader.TryReadSExpGolomb(out value);
+            Assert.AreEqual(ReaderError.Overflow, error, "Error");
+        }
 
-        bitReader.m_Index = 8;
+        [Test]
+        public void TryReadSExpGolomb_ReadOneNoBitLeft_ReturnOutOfRange()
+        {
+            Stream.Add(0x00);
 
-        int value;
-        ReaderError error;
+            var bitReader = new BBitReader(Stream);
 
-        error = bitReader.TryReadSExpGolomb(out value);
-        Assert.AreEqual(ReaderError.OutOfRange, error, "Error");
-    }
+            bitReader.m_Index = 8;
 
-    [Test]
-    public void TryReadSExpGolomb_ReadOneWithoutEnoughBit_ReturnOutOfRange()
-    {
-        Stream.Add(0x00);
-        Stream.Add(0x40);
+            int value;
+            ReaderError error;
 
-        var bitReader = new BBitReader(Stream);
+            error = bitReader.TryReadSExpGolomb(out value);
+            Assert.AreEqual(ReaderError.OutOfRange, error, "Error");
+        }
 
-        int value;
-        ReaderError error;
+        [Test]
+        public void TryReadSExpGolomb_ReadOneWithoutEnoughBit_ReturnOutOfRange()
+        {
+            Stream.Add(0x00);
+            Stream.Add(0x40);
 
-        error = bitReader.TryReadSExpGolomb(out value);
-        Assert.AreEqual(ReaderError.OutOfRange, error, "Error");
-    }
+            var bitReader = new BBitReader(Stream);
 
-    [Test]
-    public void TryReadSExpGolomb_ReadOneWithEnoughBit_Return7()
-    {
-        Stream.Add(0x00);
-        Stream.Add(0x80);
+            int value;
+            ReaderError error;
 
-        var bitReader = new BBitReader(Stream);
+            error = bitReader.TryReadSExpGolomb(out value);
+            Assert.AreEqual(ReaderError.OutOfRange, error, "Error");
+        }
 
-        bitReader.m_Index = 1;
+        [Test]
+        public void TryReadSExpGolomb_ReadOneWithEnoughBit_Return7()
+        {
+            Stream.Add(0x00);
+            Stream.Add(0x80);
 
-        int value;
-        ReaderError error;
+            var bitReader = new BBitReader(Stream);
 
-        error = bitReader.TryReadSExpGolomb(out value);
-        Assert.AreEqual(ReaderError.None, error, "Error");
-        Assert.AreEqual(64, value, "Value");
+            bitReader.m_Index = 1;
+
+            int value;
+            ReaderError error;
+
+            error = bitReader.TryReadSExpGolomb(out value);
+            Assert.AreEqual(ReaderError.None, error, "Error");
+            Assert.AreEqual(64, value, "Value");
+        }
     }
 }

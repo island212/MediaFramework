@@ -18,9 +18,9 @@ namespace MediaFramework.LowLevel.Unsafe
 
         public readonly int m_Length;
 
-        public bool IsInitialized => m_Head != null && m_Buffer != null && m_Length > 0;
+        public bool IsCreated => m_Head != null && m_Buffer != null && m_Length > 0;
 
-        public bool IsValid => IsInitialized && m_Buffer <= m_Head;
+        public bool IsValid => IsCreated && m_Buffer <= m_Head;
 
         public int Index
         {
@@ -137,6 +137,7 @@ namespace MediaFramework.LowLevel.Unsafe
                    (long)*m_Head++ << 24 | (long)*m_Head++ << 16 | (long)*m_Head++ << 8 | *m_Head++;
         }
 
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public void Seek(int count)
         {
             m_Head += count;
