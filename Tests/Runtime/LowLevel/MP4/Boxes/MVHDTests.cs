@@ -1,7 +1,9 @@
-﻿using MediaFramework.LowLevel.MP4;
+﻿using MediaFramework.LowLevel;
+using MediaFramework.LowLevel.MP4;
 using MediaFramework.LowLevel.Unsafe;
 using NUnit.Framework;
 using Unity.Collections;
+using Unity.Collections.LowLevel.Unsafe;
 
 namespace MP4.Boxes
 {
@@ -22,10 +24,26 @@ namespace MP4.Boxes
 
         private MP4JobContext context;
 
+        [OneTimeSetUp]
+        public void OneTimeSetUp()
+        {
+            context = new MP4JobContext();
+            context.Logger = new JobLogger(16, Allocator.Temp);
+            context.Tracks = new UnsafeList<TRAKBox>(1, Allocator.Temp);
+        }
+
         [TearDown]
         public void TearDown()
         {
-            context.Validator.Dispose();
+            context.Logger.Clear();
+            context.Tracks.Clear();
+        }
+
+        [OneTimeTearDown]
+        public void OneTimeTearDown()
+        {
+            context.Logger.Dispose();
+            context.Tracks.Dispose();
         }
 
         [Test]
@@ -33,30 +51,22 @@ namespace MP4.Boxes
         {
             fixed (byte* ptr = mvhdSmallVersion0)
             {
-                context = new MP4JobContext();
-                context.Reader = new BByteReader(ptr, mvhdSmallVersion0.Length);
-                context.Validator = new MP4Validator(16, Allocator.Temp);
-                context.TrackIndex = 0;
+                var reader = new BByteReader(ptr, mvhdSmallVersion0.Length);
 
-                var mvhd = new MVHDBox();
+                var isoBox = reader.ReadISOBox();
+                var error = MVHDBox.Read(ref context, ref reader, isoBox);
 
-                var isoBox = context.Reader.ReadISOBox();
-                var error = MVHDBox.Read(ref context, ref mvhd, isoBox);
-
-                if (context.Validator.HasError)
+                for (int i = 0; i < context.Logger.Length; i++)
                 {
-                    foreach (var log in context.Validator.GetLogs())
-                    {
-                        UnityEngine.Debug.LogError(log);
-                    }
+                    UnityEngine.Debug.LogError(context.Logger.MessageAt(i));
                 }
 
                 Assert.AreEqual(MP4Error.None, error, "Error");
-                Assert.IsTrue(!context.Validator.HasError, "Validator.HasError");
+                Assert.AreEqual(0, context.Logger.Length, "Logger.Length");
 
-                Assert.AreEqual(90000, mvhd.TimeScale, "TimeScale");
-                Assert.AreEqual(501120, mvhd.Duration, "Duration");
-                Assert.AreEqual(3, mvhd.NextTrackID, "NextTrackID");
+                Assert.AreEqual(90000, context.MVHD.TimeScale, "TimeScale");
+                Assert.AreEqual(501120, context.MVHD.Duration, "Duration");
+                Assert.AreEqual(3, context.MVHD.NextTrackID, "NextTrackID");
             }
         }
     }

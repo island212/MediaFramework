@@ -1,8 +1,10 @@
-﻿using MediaFramework.LowLevel.MP4;
+﻿using MediaFramework.LowLevel;
+using MediaFramework.LowLevel.MP4;
 using MediaFramework.LowLevel.Unsafe;
 using NUnit.Framework;
 using System;
 using Unity.Collections;
+using Unity.Collections.LowLevel.Unsafe;
 
 namespace MP4.Boxes
 {
@@ -22,10 +24,26 @@ namespace MP4.Boxes
 
         private MP4JobContext context;
 
+        [OneTimeSetUp]
+        public void OneTimeSetUp()
+        {
+            context = new MP4JobContext();
+            context.Logger = new JobLogger(16, Allocator.Temp);
+            context.Tracks = new UnsafeList<TRAKBox>(1, Allocator.Temp);
+        }
+
         [TearDown]
         public void TearDown()
         {
-            context.Validator.Dispose();
+            context.Logger.Clear();
+            context.Tracks.Clear();
+        }
+
+        [OneTimeTearDown]
+        public void OneTimeTearDown()
+        {
+            context.Logger.Dispose();
+            context.Tracks.Dispose();
         }
 
         [Test]
@@ -33,68 +51,23 @@ namespace MP4.Boxes
         {
             fixed (byte* ptr = tkhdSmallVideoVersion0)
             {
-                context = new MP4JobContext();
-                context.Reader = new BByteReader(ptr, tkhdSmallVideoVersion0.Length);
-                context.Validator = new MP4Validator(16, Allocator.Temp);
+                context.Tracks.Add(new TRAKBox());
+                var reader = new BByteReader(ptr, tkhdSmallVideoVersion0.Length);
 
-                var tkhd = new TKHDBox();
+                var isoBox = reader.ReadISOBox();
+                var error = TKHDBox.Read(ref context, ref reader, isoBox);
 
-                var isoBox = context.Reader.ReadISOBox();
-                var error = TKHDBox.Read(ref context, ref tkhd, isoBox);
-
-                if (context.Validator.HasError)
+                for (int i = 0; i < context.Logger.Length; i++)
                 {
-                    foreach (var log in context.Validator.GetLogs())
-                    {
-                        UnityEngine.Debug.LogError(log.Message);
-                    }
+                    UnityEngine.Debug.LogError(context.Logger.MessageAt(i));
                 }
 
                 Assert.AreEqual(MP4Error.None, error, "Error");
-                Assert.IsTrue(!context.Validator.HasError, "Validator.HasError");
+                Assert.AreEqual(0, context.Logger.Length, "Logger.Length");
 
-                Assert.AreEqual(1, tkhd.TrackID, "TrackID");
-            }
-        }
+                ref var track = ref context.CurrentTrack;
 
-        [Test]
-        public unsafe void Read_InvalidReader_Fail()
-        {
-#if !ENABLE_UNITY_COLLECTIONS_CHECKS
-            Assert.Ignore();
-#endif
-            context = new MP4JobContext();
-            context.Validator = new MP4Validator(16, Allocator.Temp);
-
-            var tkhd = new TKHDBox();
-            var isoBox = new ISOBox
-            {
-                Size = TKHDBox.Version0,
-                Type = ISOBoxType.TKHD
-            };
-
-            Assert.Throws<ArgumentException>(() => TKHDBox.Read(ref context, ref tkhd, isoBox));
-        }
-
-        [Test]
-        public unsafe void Read_InvalidValidator_Fail()
-        {
-#if !ENABLE_UNITY_COLLECTIONS_CHECKS
-            Assert.Ignore();
-#endif
-            fixed (byte* ptr = tkhdSmallVideoVersion0)
-            {
-                context = new MP4JobContext();
-                context.Reader = new BByteReader(ptr, tkhdSmallVideoVersion0.Length);
-
-                var tkhd = new TKHDBox();
-                var isoBox = new ISOBox
-                {
-                    Size = TKHDBox.Version0,
-                    Type = ISOBoxType.TKHD
-                };
-
-                Assert.Throws<ArgumentException>(() => TKHDBox.Read(ref context, ref tkhd, isoBox));
+                Assert.AreEqual(1, track.TKHD.TrackID, "TrackID");
             }
         }
     }

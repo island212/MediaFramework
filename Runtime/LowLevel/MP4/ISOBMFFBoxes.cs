@@ -56,7 +56,7 @@ namespace MediaFramework.LowLevel.MP4
             int lastBytePosition = (int)box.Size + reader.Index - ISOBox.ByteNeeded;
             if(lastBytePosition > reader.Length)
                 return context.LogError(MP4Error.IndexOutOfReaderRange,
-                    $"The {box.Type} box size is {box.Size} and is bigger than the amount of remaining bytes in the reader {reader.Remains}");
+                    $"The {box.Type} box size is {box.Size} and is bigger than the amount of remaining bytes ({reader.Remains}) in the reader");
 
             while (reader.Index + ISOBox.ByteNeeded < lastBytePosition)
             {
@@ -106,7 +106,7 @@ namespace MediaFramework.LowLevel.MP4
         {
             if (reader.Remains >= Version0)
                 return context.LogError(MP4Error.IndexOutOfReaderRange, 
-                    $"The {box.Type} box size is {box.Size} and is bigger than the amount of remaining bytes in the reader {reader.Remains}");
+                    $"The {box.Type} box size is {box.Size} and is bigger than the amount of remaining bytes ({reader.Remains}) in the reader");
 
             var version = reader.ReadUInt8();
             reader.Seek(3); // flags
@@ -174,7 +174,7 @@ namespace MediaFramework.LowLevel.MP4
         {
             if (reader.Remains >= Version0)
                 return context.LogError(MP4Error.IndexOutOfReaderRange,
-                    $"The {box.Type} box size is {box.Size} and is bigger than the amount of remaining bytes in the reader {reader.Remains}");
+                    $"The {box.Type} box size is {box.Size} and is bigger than the amount of remaining bytes ({reader.Remains}) in the reader");
 
             ref var track = ref context.CurrentTrack;
 
