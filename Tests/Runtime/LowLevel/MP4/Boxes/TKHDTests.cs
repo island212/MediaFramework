@@ -2,38 +2,37 @@
 using MediaFramework.LowLevel.MP4;
 using MediaFramework.LowLevel.Unsafe;
 using NUnit.Framework;
+using System;
 using Unity.Collections;
 using Unity.Collections.LowLevel.Unsafe;
 
 namespace MP4.Boxes
 {
-    public class MVHDTests
+    public class TKHDTests
     {
-        readonly byte[] mvhdSmallVersion0 = {
-	        // Offset 0x0005CC90 to 0x0005CCFB small.mp4
-	        0x00, 0x00, 0x00, 0x6C, 0x6D, 0x76, 0x68, 0x64, 0x00, 0x00, 0x00, 0x00,
-            0xC7, 0xCA, 0xEE, 0xA7, 0xC7, 0xCA, 0xEE, 0xA8, 0x00, 0x01, 0x5F, 0x90,
-            0x00, 0x07, 0xA5, 0x80, 0x00, 0x01, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00,
-            0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x01, 0x00, 0x00,
+        readonly byte[] tkhdSmallVideoVersion0 = {
+	        // Offset 0x0005CD1C to 0x0005CD77 small.mp4
+	        0x00, 0x00, 0x00, 0x5C, 0x74, 0x6B, 0x68, 0x64, 0x00, 0x00, 0x00, 0x01,
+            0xC7, 0xCA, 0xEE, 0xA7, 0xC7, 0xCA, 0xEE, 0xA8, 0x00, 0x00, 0x00, 0x01,
+            0x00, 0x00, 0x00, 0x00, 0x00, 0x07, 0x99, 0x50, 0x00, 0x00, 0x00, 0x00,
             0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
             0x00, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-            0x00, 0x00, 0x00, 0x00, 0x40, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-            0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-            0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x03
+            0x00, 0x00, 0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+            0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x40, 0x00, 0x00, 0x00,
+            0x02, 0x30, 0x00, 0x00, 0x01, 0x40, 0x00, 0x00
         };
 
-        readonly byte[] mvhdSmallVersion1 = {
+        readonly byte[] tkhdSmallVideoVersion1 = {
 	        // Created manually
-	        0x00, 0x00, 0x00, 0x78, 0x6D, 0x76, 0x68, 0x64, 0x01, 0x00, 0x00, 0x00,
+	        0x00, 0x00, 0x00, 0x68, 0x74, 0x6B, 0x68, 0x64, 0x01, 0x00, 0x00, 0x01,
             0x00, 0x00, 0x00, 0x00, 0xC7, 0xCA, 0xEE, 0xA7, 0x00, 0x00, 0x00, 0x00, 
-            0xC7, 0xCA, 0xEE, 0xA8, 0x00, 0x01, 0x5F, 0x90, 0x00, 0x00, 0x00, 0x00,
-            0x00, 0x07, 0xA5, 0x80, 0x00, 0x01, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00,
-            0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x01, 0x00, 0x00,
+            0xC7, 0xCA, 0xEE, 0xA8, 0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x00,
+            0x00, 0x00, 0x00, 0x00, 0x00, 0x07, 0x99, 0x50, 0x00, 0x00, 0x00, 0x00,
             0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
             0x00, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-            0x00, 0x00, 0x00, 0x00, 0x40, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-            0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-            0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x03
+            0x00, 0x00, 0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+            0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x40, 0x00, 0x00, 0x00,
+            0x02, 0x30, 0x00, 0x00, 0x01, 0x40, 0x00, 0x00
         };
 
         private MP4JobContext context;
@@ -44,6 +43,19 @@ namespace MP4.Boxes
             context = new MP4JobContext();
             context.Logger = new JobLogger(16, Allocator.Temp);
             context.Tracks = new UnsafeList<TRAKBox>(1, Allocator.Temp);
+        }
+
+        [OneTimeTearDown]
+        public void OneTimeTearDown()
+        {
+            context.Logger.Dispose();
+            context.Tracks.Dispose();
+        }
+
+        [SetUp]
+        public void SetUp()
+        {
+            context.Tracks.Add(new TRAKBox());
         }
 
         [TearDown]
@@ -60,22 +72,15 @@ namespace MP4.Boxes
             context.Tracks = tracks;
         }
 
-        [OneTimeTearDown]
-        public void OneTimeTearDown()
-        {
-            context.Logger.Dispose();
-            context.Tracks.Dispose();
-        }
-
         [Test]
         public unsafe void Read_ValidVersion0_AllValueAreEqual()
         {
-            fixed (byte* ptr = mvhdSmallVersion0)
+            fixed (byte* ptr = tkhdSmallVideoVersion0)
             {
-                var reader = new BByteReader(ptr, mvhdSmallVersion0.Length);
+                var reader = new BByteReader(ptr, tkhdSmallVideoVersion0.Length);
 
                 var isoBox = reader.ReadISOBox();
-                var error = MVHDBox.Read(ref context, ref reader, isoBox);
+                var error = TKHDBox.Read(ref context, ref reader, isoBox);
 
                 for (int i = 0; i < context.Logger.Length; i++)
                 {
@@ -85,21 +90,21 @@ namespace MP4.Boxes
                 Assert.AreEqual(MP4Error.None, error, "Error");
                 Assert.AreEqual(0, context.Logger.Length, "Logger.Length");
 
-                Assert.AreEqual(90000, context.MVHD.Timescale, "TimeScale");
-                Assert.AreEqual(501120, context.MVHD.Duration, "Duration");
-                Assert.AreEqual(3, context.MVHD.NextTrackID, "NextTrackID");
+                ref var track = ref context.CurrentTrack;
+
+                Assert.AreEqual(1, track.TKHD.TrackID, "TrackID");
             }
         }
 
         [Test]
         public unsafe void Read_ValidVersion1_AllValueAreEqual()
         {
-            fixed (byte* ptr = mvhdSmallVersion1)
+            fixed (byte* ptr = tkhdSmallVideoVersion1)
             {
-                var reader = new BByteReader(ptr, mvhdSmallVersion1.Length);
+                var reader = new BByteReader(ptr, tkhdSmallVideoVersion1.Length);
 
                 var isoBox = reader.ReadISOBox();
-                var error = MVHDBox.Read(ref context, ref reader, isoBox);
+                var error = TKHDBox.Read(ref context, ref reader, isoBox);
 
                 for (int i = 0; i < context.Logger.Length; i++)
                 {
@@ -109,24 +114,24 @@ namespace MP4.Boxes
                 Assert.AreEqual(MP4Error.None, error, "Error");
                 Assert.AreEqual(0, context.Logger.Length, "Logger.Length");
 
-                Assert.AreEqual(90000, context.MVHD.Timescale, "TimeScale");
-                Assert.AreEqual(501120, context.MVHD.Duration, "Duration");
-                Assert.AreEqual(3, context.MVHD.NextTrackID, "NextTrackID");
+                ref var track = ref context.CurrentTrack;
+
+                Assert.AreEqual(1, track.TKHD.TrackID, "TrackID");
             }
         }
 
         [Test]
         public unsafe void Read_Duplicate_ReturnErrorAndLog()
         {
-            fixed (byte* ptr = mvhdSmallVersion0)
+            fixed (byte* ptr = tkhdSmallVideoVersion0)
             {
-                context.MVHD.Duration = 60;
-                context.MVHD.Timescale = 1;
+                ref var track = ref context.CurrentTrack;
+                track.TKHD.TrackID = 1;
 
-                var reader = new BByteReader(ptr, mvhdSmallVersion0.Length);
+                var reader = new BByteReader(ptr, tkhdSmallVideoVersion0.Length);
 
                 var isoBox = reader.ReadISOBox();
-                var error = MVHDBox.Read(ref context, ref reader, isoBox);
+                var error = TKHDBox.Read(ref context, ref reader, isoBox);
 
                 Assert.AreEqual(MP4Error.DuplicateBox, error, "Error");
                 Assert.AreEqual(1, context.Logger.Length, "Logger.Length");
@@ -136,14 +141,16 @@ namespace MP4.Boxes
         [Test]
         public unsafe void Read_BoxSize0_ReturnErrorAndLog()
         {
-            fixed (byte* ptr = mvhdSmallVersion0)
+            fixed (byte* ptr = tkhdSmallVideoVersion0)
             {
-                var reader = new BByteReader(ptr, mvhdSmallVersion0.Length);
+                ref var track = ref context.CurrentTrack;
+
+                var reader = new BByteReader(ptr, tkhdSmallVideoVersion0.Length);
 
                 var isoBox = reader.ReadISOBox();
                 isoBox.Size = 0;
 
-                var error = MVHDBox.Read(ref context, ref reader, isoBox);
+                var error = TKHDBox.Read(ref context, ref reader, isoBox);
 
                 Assert.AreEqual(MP4Error.InvalidBoxSize, error, "Error");
                 Assert.AreEqual(1, context.Logger.Length, "Logger.Length");
@@ -153,14 +160,16 @@ namespace MP4.Boxes
         [Test]
         public unsafe void Read_WrongBoxSizeForVersion0_ReturnErrorAndLog()
         {
-            fixed (byte* ptr = mvhdSmallVersion0)
+            fixed (byte* ptr = tkhdSmallVideoVersion0)
             {
-                var reader = new BByteReader(ptr, mvhdSmallVersion0.Length);
+                ref var track = ref context.CurrentTrack;
+
+                var reader = new BByteReader(ptr, tkhdSmallVideoVersion0.Length);
 
                 var isoBox = reader.ReadISOBox();
-                isoBox.Size = MVHDBox.Version0 + 2;
+                isoBox.Size = TKHDBox.Version0 + 2;
 
-                var error = MVHDBox.Read(ref context, ref reader, isoBox);
+                var error = TKHDBox.Read(ref context, ref reader, isoBox);
 
                 Assert.AreEqual(MP4Error.InvalidBoxSize, error, "Error");
                 Assert.AreEqual(1, context.Logger.Length, "Logger.Length");
@@ -170,14 +179,16 @@ namespace MP4.Boxes
         [Test]
         public unsafe void Read_WrongBoxSizeForVersion1_ReturnErrorAndLog()
         {
-            fixed (byte* ptr = mvhdSmallVersion1)
+            fixed (byte* ptr = tkhdSmallVideoVersion1)
             {
-                var reader = new BByteReader(ptr, mvhdSmallVersion1.Length);
+                ref var track = ref context.CurrentTrack;
+
+                var reader = new BByteReader(ptr, tkhdSmallVideoVersion1.Length);
 
                 var isoBox = reader.ReadISOBox();
-                isoBox.Size = MVHDBox.Version1 + 2;
+                isoBox.Size = TKHDBox.Version1 + 2;
 
-                var error = MVHDBox.Read(ref context, ref reader, isoBox);
+                var error = TKHDBox.Read(ref context, ref reader, isoBox);
 
                 Assert.AreEqual(MP4Error.InvalidBoxSize, error, "Error");
                 Assert.AreEqual(1, context.Logger.Length, "Logger.Length");
@@ -187,19 +198,23 @@ namespace MP4.Boxes
         [Test]
         public unsafe void Read_InvalidVersion3_ReturnErrorAndLog()
         {
-            byte* ptr = stackalloc byte[mvhdSmallVersion0.Length];
-            for (int i = 0; i < mvhdSmallVersion0.Length; i++)
-                ptr[i] = mvhdSmallVersion0[i];
+            byte* ptr = stackalloc byte[tkhdSmallVideoVersion0.Length];
+            for (int i = 0; i < tkhdSmallVideoVersion0.Length; i++)
+                ptr[i] = tkhdSmallVideoVersion0[i];
 
             ptr[8] = 3; // Change the version to 3
 
-            var reader = new BByteReader(ptr, mvhdSmallVersion0.Length);
+            ref var track = ref context.CurrentTrack;
+
+            var reader = new BByteReader(ptr, tkhdSmallVideoVersion0.Length);
 
             var isoBox = reader.ReadISOBox();
-            var error = MVHDBox.Read(ref context, ref reader, isoBox);
+            var error = TKHDBox.Read(ref context, ref reader, isoBox);
 
             Assert.AreEqual(MP4Error.InvalidBoxVersion, error, "Error");
             Assert.AreEqual(1, context.Logger.Length, "Logger.Length");
         }
     }
 }
+
+
