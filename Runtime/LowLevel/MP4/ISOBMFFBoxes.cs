@@ -60,6 +60,9 @@ namespace MediaFramework.LowLevel.MP4
                     case ISOBoxType.MVHD:
                         error = MVHDBox.Read(ref context, ref reader, isoBox);
                         break;
+                    case ISOBoxType.MDHD:
+                        error = MDHDBox.Read(ref context, ref reader, isoBox);
+                        break;
                     case ISOBoxType.TRAK:
                         error = TRAKBox.Read(ref context, ref reader, isoBox);
                         break;
