@@ -3,6 +3,7 @@ using MediaFramework.LowLevel.Unsafe;
 using System;
 using System.Diagnostics;
 using System.Runtime.CompilerServices;
+using Unity.Assertions;
 using Unity.Collections;
 using Unity.Mathematics;
 using static CodiceApp.EventTracking.EventModelSerialization;
@@ -15,27 +16,13 @@ namespace MediaFramework.LowLevel.MP4
     {
         public const int ByteNeeded = 8;
 
-        public uint Size;           // 32 bits
-        public ISOBoxType Type;     // 32 bits
-
-        public ISOBox(uint size, ISOBoxType type)
-        {
-            Size = size;
-            Type = type;
-        }
+        public uint size;
+        public ISOBoxType type;
     }
 
     public struct ISODate
     {
         public ulong value;
-    }
-
-    // ISO 639-2 Code
-    // https://en.wikipedia.org/wiki/List_of_ISO_639-2_codes
-    public struct ISOLanguage
-    {
-        // padding (1 bit) + character (5 bits)[3]
-        public ushort value;
     }
 
     public struct SampleGroup
@@ -46,29 +33,29 @@ namespace MediaFramework.LowLevel.MP4
 
     public static class ISOBMFF
     {
-        public static MP4Error Read(ref MP4JobContext context, ref BByteReader reader, ISOBox box)
+        public static MP4Error Read(ref MP4JobContext context, ref BByteReader reader, in ISOBox box)
         {
             if (context.BoxDepth > 7)
-                return context.LogError(MP4Error.IllegalBoxDepth, $"The box chain is nested too depth");
+                return context.LogError(MP4Error.IllegalBoxDepth, reader.Index, $"The box chain is nested too depth");
 
             var error = MP4Error.None;
 
             context.BoxDepth++;
 
-            int lastBytePosition = (int)box.Size + reader.Index - ISOBox.ByteNeeded;
+            int lastBytePosition = (int)box.size + reader.Index - ISOBox.ByteNeeded;
             if(lastBytePosition > reader.Length)
-                return context.LogError(MP4Error.IndexOutOfReaderRange,
-                    $"The {box.Type} box size is {box.Size} and is bigger than the amount of remaining bytes ({reader.Remains})");
+                return context.LogError(MP4Error.IndexOutOfReaderRange, reader.Index,
+                    $"The {box.type} box size is {box.size} and is bigger than the amount of remaining bytes ({reader.Remains})");
 
             while (reader.Index + ISOBox.ByteNeeded < lastBytePosition)
             {
                 var isoBox = reader.ReadISOBox();
 
-                if (reader.Index + isoBox.Size - ISOBox.ByteNeeded > lastBytePosition)
-                    return context.LogError(MP4Error.IndexOutOfReaderRange,
-                        $"The {box.Type} box size is {box.Size} and is bigger than the container size");
+                if (reader.Index + isoBox.size - ISOBox.ByteNeeded > lastBytePosition)
+                    return context.LogError(MP4Error.IndexOutOfReaderRange, reader.Index,
+                        $"The {isoBox.type} box size is {isoBox.size} and is bigger than the {box.type} size {box.size}");
 
-                switch (isoBox.Type)
+                switch (isoBox.type)
                 {
                     case ISOBoxType.MVHD:
                         error = MVHDBox.Read(ref context, ref reader, isoBox);
@@ -100,7 +87,7 @@ namespace MediaFramework.LowLevel.MP4
                         error = Read(ref context, ref reader, isoBox); 
                         break;
                     default:
-                        reader.Seek((int)isoBox.Size - ISOBox.ByteNeeded);
+                        reader.Seek((int)isoBox.size - ISOBox.ByteNeeded);
                         break;
                 }
 
@@ -125,11 +112,13 @@ namespace MediaFramework.LowLevel.MP4
 
         public static MP4Error Read(ref MP4JobContext context, ref BByteReader reader, in ISOBox box)
         {
-            if (box.Size < Version0)
-                return context.LogError(MP4Error.InvalidBoxSize, $"The minimum size for {box.Type} box is {Version0} but was {box.Size}");
+            Assert.AreEqual(ISOBoxType.MVHD, box.type, "ISOBoxType");
+
+            if (box.size < Version0)
+                return context.LogError(MP4Error.InvalidBoxSize, reader.Index, $"The minimum size for {box.type} box is {Version0} but was {box.size}");
 
             if (context.MVHD.Duration != 0)
-                return context.LogError(MP4Error.DuplicateBox, $"Duplicate {box.Type} box detected");
+                return context.LogError(MP4Error.DuplicateBox, reader.Index, $"Duplicate {box.type} box detected");
 
             var version = reader.ReadUInt8();
             reader.Seek(3); // flags
@@ -137,8 +126,8 @@ namespace MediaFramework.LowLevel.MP4
             switch (version)
             {
                 case 0:
-                    if (box.Size != Version0)
-                        return context.LogError(MP4Error.InvalidBoxSize, $"The MVHD box size for version 0 is {Version0} and not {box.Size}");
+                    if (box.size != Version0)
+                        return context.LogError(MP4Error.InvalidBoxSize, reader.Index, $"The {box.type} box size for version 0 is {Version0} and not {box.size}");
 
                     reader.Seek(4); // creation_time
                     reader.Seek(4); // modification_time
@@ -146,8 +135,8 @@ namespace MediaFramework.LowLevel.MP4
                     context.MVHD.Duration = reader.ReadUInt32();
                     break;
                 case 1:
-                    if (box.Size != Version1)
-                        return context.LogError(MP4Error.InvalidBoxSize, $"The MVHD box size for version 1 should be {Version1} and not {box.Size}");
+                    if (box.size != Version1)
+                        return context.LogError(MP4Error.InvalidBoxSize, reader.Index, $"The {box.type} box size for version 1 should be {Version1} and not {box.size}");
 
                     reader.Seek(8); // creation_time
                     reader.Seek(8); // modification_time
@@ -155,7 +144,7 @@ namespace MediaFramework.LowLevel.MP4
                     context.MVHD.Duration = reader.ReadUInt64();
                     break;
                 default:
-                    return context.LogError(MP4Error.InvalidBoxVersion, $"The MVHD box has an invalid version of {version}");
+                    return context.LogError(MP4Error.InvalidBoxVersion, reader.Index, $"The {box.type} box has an invalid version of {version}");
             }
 
             reader.Seek(4); // rate
@@ -183,6 +172,8 @@ namespace MediaFramework.LowLevel.MP4
 
         public static MP4Error Read(ref MP4JobContext context, ref BByteReader reader, in ISOBox box)
         {
+            Assert.AreEqual(ISOBoxType.TRAK, box.type, "ISOBoxType");
+
             context.Tracks.Add(new TRAKBox());
 
             var error = ISOBMFF.Read(ref context, ref reader, box);
@@ -202,13 +193,15 @@ namespace MediaFramework.LowLevel.MP4
 
         public static MP4Error Read(ref MP4JobContext context, ref BByteReader reader, in ISOBox box)
         {
-            if (box.Size < Version0)
-                return context.LogError(MP4Error.InvalidBoxSize, $"The minimum size for {box.Type} box is {Version0} but was {box.Size}");
+            Assert.AreEqual(ISOBoxType.TKHD, box.type, "ISOBoxType");
+
+            if (box.size < Version0)
+                return context.LogError(MP4Error.InvalidBoxSize, reader.Index, $"The minimum size for {box.type} box is {Version0} but was {box.size}");
 
             ref var track = ref context.CurrentTrack;
 
             if (track.TKHD.TrackID != 0)
-                return context.LogError(MP4Error.DuplicateBox, $"Duplicate {box.Type} box detected");
+                return context.LogError(MP4Error.DuplicateBox, reader.Index, $"Duplicate {box.type} box detected");
 
             var version = reader.ReadUInt8();
             reader.Seek(3); // flags
@@ -216,8 +209,8 @@ namespace MediaFramework.LowLevel.MP4
             switch (version)
             {
                 case 0:
-                    if (box.Size != Version0)
-                        return context.LogError(MP4Error.InvalidBoxSize, $"The TKHD box size for version 0 should be {Version0} and not {box.Size}");
+                    if (box.size != Version0)
+                        return context.LogError(MP4Error.InvalidBoxSize, reader.Index, $"The {box.type} box size for version 0 should be {Version0} and not {box.size}");
 
                     reader.Seek(4); // creation_time
                     reader.Seek(4); // modification_time
@@ -226,8 +219,8 @@ namespace MediaFramework.LowLevel.MP4
                     reader.Seek(4); // duration
                     break;
                 case 1:
-                    if (box.Size != Version1)
-                        return context.LogError(MP4Error.InvalidBoxSize, $"The TKHD box size for version 1 should be {Version1} and not {box.Size}");
+                    if (box.size != Version1)
+                        return context.LogError(MP4Error.InvalidBoxSize, reader.Index, $"The {box.type} box size for version 1 should be {Version1} and not {box.size}");
 
                     reader.Seek(8); // creation_time
                     reader.Seek(8); // modification_time
@@ -236,7 +229,7 @@ namespace MediaFramework.LowLevel.MP4
                     reader.Seek(8); // duration
                     break;
                 default:
-                    return context.LogError(MP4Error.InvalidBoxVersion, $"The TKHD box has an invalid version of {version}");
+                    return context.LogError(MP4Error.InvalidBoxVersion, reader.Index, $"The {box.type} box has an invalid version of {version}");
             }
 
             reader.Seek(8); // reserved
@@ -259,16 +252,19 @@ namespace MediaFramework.LowLevel.MP4
 
         public uint Timescale;
         public ulong Duration;
+        public ISOLanguage Language;
 
         public static MP4Error Read(ref MP4JobContext context, ref BByteReader reader, in ISOBox box)
         {
-            if (box.Size < Version0)
-                return context.LogError(MP4Error.InvalidBoxSize, $"The minimum size for {box.Type} box is {Version0} but was {box.Size}");
+            Assert.AreEqual(ISOBoxType.MDHD, box.type, "ISOBoxType");
+
+            if (box.size < Version0)
+                return context.LogError(MP4Error.InvalidBoxSize, reader.Index, $"The minimum size for {box.type} box is {Version0} but was {box.size}");
 
             ref var track = ref context.CurrentTrack;
 
             if(track.MDHD.Duration != 0)
-                return context.LogError(MP4Error.DuplicateBox, $"Duplicate {box.Type} box detected");
+                return context.LogError(MP4Error.DuplicateBox, reader.Index, $"Duplicate {box.type} box detected");
 
             var version = reader.ReadUInt8();
             reader.Seek(3); // flags
@@ -276,37 +272,29 @@ namespace MediaFramework.LowLevel.MP4
             switch (version)
             {
                 case 0:
-                    if (box.Size != Version0)
-                        return context.LogError(MP4Error.InvalidBoxSize, $"The TKHD box size for version 0 should be {Version0} and not {box.Size}");
+                    if (box.size != Version0)
+                        return context.LogError(MP4Error.InvalidBoxSize, reader.Index, $"The {box.type} box size for version 0 should be {Version0} and not {box.size}");
 
                     reader.Seek(4); // creation_time
                     reader.Seek(4); // modification_time
-                    track.TKHD.TrackID = reader.ReadUInt32();
-                    reader.Seek(4); // reserved
-                    reader.Seek(4); // duration
+                    track.MDHD.Timescale = reader.ReadUInt32();
+                    track.MDHD.Duration = reader.ReadUInt32();
                     break;
                 case 1:
-                    if (box.Size != Version1)
-                        return context.LogError(MP4Error.InvalidBoxSize, $"The TKHD box size for version 1 should be {Version1} and not {box.Size}");
+                    if (box.size != Version1)
+                        return context.LogError(MP4Error.InvalidBoxSize, reader.Index, $"The {box.type} box size for version 1 should be {Version1} and not {box.size}");
 
                     reader.Seek(8); // creation_time
                     reader.Seek(8); // modification_time
-                    track.TKHD.TrackID = reader.ReadUInt32();
-                    reader.Seek(4); // reserved
-                    reader.Seek(8); // duration
+                    track.MDHD.Timescale = reader.ReadUInt32();
+                    track.MDHD.Duration = reader.ReadUInt64();
                     break;
                 default:
-                    return context.LogError(MP4Error.InvalidBoxVersion, $"The TKHD box has an invalid version of {version}");
+                    return context.LogError(MP4Error.InvalidBoxVersion, reader.Index, $"The {box.type} box has an invalid version of {version}");
             }
 
-            reader.Seek(8); // reserved
-            reader.Seek(2); // layer 
-            reader.Seek(2); // alternate_group  
-            reader.Seek(2); // volume 
-            reader.Seek(2); // reserved
-            reader.Seek(4 * 9); // matrix
-            reader.Seek(4); // width
-            reader.Seek(4); // height
+            track.MDHD.Language = (ISOLanguage)reader.ReadUInt16();
+            reader.Seek(2); // pre_defined 
 
             return MP4Error.None;
         }
@@ -318,13 +306,15 @@ namespace MediaFramework.LowLevel.MP4
 
         public static MP4Error Read(ref MP4JobContext context, ref BByteReader reader, in ISOBox box)
         {
-            if (box.Size < MinSize)
-                return context.LogError(MP4Error.InvalidBoxSize, $"The minimum size for {box.Type} box is {MinSize} but was {box.Size}");
+            Assert.AreEqual(ISOBoxType.HDLR, box.type, "ISOBoxType");
+
+            if (box.size < MinSize)
+                return context.LogError(MP4Error.InvalidBoxSize, reader.Index, $"The minimum size for {box.type} box is {MinSize} but was {box.size}");
 
             ref var track = ref context.CurrentTrack;
 
             if (track.Handler != 0)
-                return context.LogError(MP4Error.DuplicateBox, $"Duplicate {box.Type} box detected");
+                return context.LogError(MP4Error.DuplicateBox, reader.Index, $"Duplicate {box.type} box detected");
 
             reader.Seek(4); // version + flags
             reader.Seek(4); // pre_defined
@@ -332,122 +322,141 @@ namespace MediaFramework.LowLevel.MP4
             reader.Seek(4 * 3); // reserved
             reader.Seek(1); // 1 null terminator
 
-            reader.Seek((int)box.Size - MinSize);
-
+            reader.Seek((int)box.size - MinSize);
             return MP4Error.None;
         }
     }
 
     public struct STSDBox
     {
-        public const int MinSize = 33;
-
         public int Index;
 
         public static MP4Error Read(ref MP4JobContext context, ref BByteReader reader, in ISOBox box)
         {
+            Assert.AreEqual(ISOBoxType.STSD, box.type, "ISOBoxType");
+
             ref var track = ref context.CurrentTrack;
 
             if (track.STSD.Index != 0)
-                return context.LogError(MP4Error.DuplicateBox, $"Duplicate {box.Type} box detected");
+                return context.LogError(MP4Error.DuplicateBox, reader.Index, $"Duplicate {box.type} box detected");
 
-            track.STSD.Index = reader.Index;
+            track.STSD.Index = reader.Index - ISOBox.ByteNeeded;
 
-            reader.Seek((int)box.Size - ISOBox.ByteNeeded);
-
+            reader.Seek((int)box.size - ISOBox.ByteNeeded);
             return MP4Error.None;
         }
     }
 
     public struct STTSBox
     {
-        public const int MinSize = 24;
+        public const int HeaderSize = 16;
+        public const int SampleSize = 8;
+        public const int MinSize = HeaderSize + SampleSize;
 
         public uint EntryCount;
         public int SampleIndex;
 
         public static MP4Error Read(ref MP4JobContext context, ref BByteReader reader, in ISOBox box)
         {
-            if (box.Size < MinSize)
-                return context.LogError(MP4Error.InvalidBoxSize, $"The minimum size for {box.Type} box is {MinSize} but was {box.Size}");
+            Assert.AreEqual(ISOBoxType.STTS, box.type, "ISOBoxType");
+
+            if (box.size < MinSize)
+                return context.LogError(MP4Error.InvalidBoxSize, reader.Index, $"The minimum size for {box.type} box is {MinSize} but was {box.size}");
+
+            if (((box.size - HeaderSize) % SampleSize) != 0)
+                return context.LogError(MP4Error.InvalidBoxSize, reader.Index, $"The {box.type} size can't be {box.size}. Each sample needs to be {SampleSize}");
 
             ref var track = ref context.CurrentTrack;
 
             if (track.STTS.EntryCount != 0)
-                return context.LogError(MP4Error.DuplicateBox, $"Duplicate {box.Type} box detected");
+                return context.LogError(MP4Error.DuplicateBox, reader.Index, $"Duplicate {box.type} box detected");
 
             reader.Seek(4); // version + flags
 
             track.STTS.EntryCount = reader.ReadUInt32();
+            if ((box.size - HeaderSize) / SampleSize != track.STTS.EntryCount)
+                return context.LogError(MP4Error.InvalidEntryCount, reader.Index,
+                    $"The {box.type} should have {track.STTS.EntryCount} samples but is size ({box.size}) only allows {(box.size - HeaderSize) / SampleSize} samples");
+
             track.STTS.SampleIndex = reader.Index;
 
-            // There is always at least one sample
-            reader.Seek(8); // First sample
-
-            reader.Seek((int)box.Size - MinSize);
-
+            reader.Seek((int)box.size - HeaderSize);
             return MP4Error.None;
         }
     }
 
     public struct STSCBox
     {
-        public const int MinSize = 28;
+        public const int HeaderSize = 16;
+        public const int SampleSize = 12;
+        public const int MinSize = HeaderSize + SampleSize;
 
         public uint EntryCount;
         public int SampleIndex;
 
         public static MP4Error Read(ref MP4JobContext context, ref BByteReader reader, in ISOBox box)
         {
-            if (box.Size < MinSize)
-                return context.LogError(MP4Error.InvalidBoxSize, $"The minimum size for {box.Type} box is {MinSize} but was {box.Size}");
+            Assert.AreEqual(ISOBoxType.STSC, box.type, "ISOBoxType");
+
+            if (box.size < MinSize)
+                return context.LogError(MP4Error.InvalidBoxSize, reader.Index, $"The minimum size for {box.type} box is {MinSize} but was {box.size}");
+
+            if (((box.size - HeaderSize) % SampleSize) != 0)
+                return context.LogError(MP4Error.InvalidBoxSize, reader.Index, $"The {box.type} size can't be {box.size}. Each sample needs to be {SampleSize}");
 
             ref var track = ref context.CurrentTrack;
 
             if (track.STSC.EntryCount != 0)
-                return context.LogError(MP4Error.DuplicateBox, $"Duplicate {box.Type} box detected");
+                return context.LogError(MP4Error.DuplicateBox, reader.Index, $"Duplicate {box.type} box detected");
 
             reader.Seek(4); // version + flags
 
             track.STSC.EntryCount = reader.ReadUInt32();
+            if ((box.size - HeaderSize) / SampleSize != track.STSC.EntryCount)
+                return context.LogError(MP4Error.InvalidEntryCount, reader.Index,
+                    $"The {box.type} should have {track.STSC.EntryCount} samples but is size ({box.size}) only allows {(box.size - HeaderSize) / SampleSize} samples");
+
             track.STSC.SampleIndex = reader.Index;
 
-            // There is always at least one sample
-            reader.Seek(12); // First sample
-
-            reader.Seek((int)box.Size - MinSize);
-
+            reader.Seek((int)box.size - HeaderSize);
             return MP4Error.None;
         }
     }
 
     public struct STCOBox
     {
-        public const int MinSize = 20;
+        public const int HeaderSize = 16;
+        public const int SampleSize = 4;
+        public const int MinSize = HeaderSize + SampleSize;
 
         public uint EntryCount;
         public int SampleIndex;
 
         public static MP4Error Read(ref MP4JobContext context, ref BByteReader reader, in ISOBox box)
         {
-            if (box.Size < MinSize)
-                return context.LogError(MP4Error.InvalidBoxSize, $"The minimum size for {box.Type} box is {MinSize} but was {box.Size}");
+            Assert.AreEqual(ISOBoxType.STCO, box.type, "ISOBoxType");
+
+            if (box.size < MinSize)
+                return context.LogError(MP4Error.InvalidBoxSize, reader.Index, $"The minimum size for {box.type} box is {MinSize} but was {box.size}");
+
+            if (((box.size - HeaderSize) % SampleSize) != 0)
+                return context.LogError(MP4Error.InvalidBoxSize, reader.Index, $"The {box.type} size can't be {box.size}. Each sample needs to be {SampleSize}");
 
             ref var track = ref context.CurrentTrack;
 
             if (track.STCO.EntryCount != 0)
-                return context.LogError(MP4Error.DuplicateBox, $"Duplicate {box.Type} box detected");
+                return context.LogError(MP4Error.DuplicateBox, reader.Index, $"Duplicate {box.type} box detected");
 
             reader.Seek(4); // version + flags
 
             track.STCO.EntryCount = reader.ReadUInt32();
+            if ((box.size - HeaderSize) / SampleSize != track.STCO.EntryCount)
+                return context.LogError(MP4Error.InvalidEntryCount, reader.Index,
+                    $"The {box.type} should have {track.STCO.EntryCount} samples but is size ({box.size}) only allows {(box.size - HeaderSize) / SampleSize} samples");
+
             track.STCO.SampleIndex = reader.Index;
 
-            // There is always at least one sample
-            reader.Seek(4); // First sample
-
-            reader.Seek((int)box.Size - MinSize);
-
+            reader.Seek((int)box.size - HeaderSize);
             return MP4Error.None;
         }
     }
@@ -480,7 +489,7 @@ namespace MediaFramework.LowLevel.MP4
         public static void CheckIfReaderRead(int index, in BByteReader reader, in ISOBox box)
         {
             if(index >= reader.Index)
-                throw new InvalidOperationException($"Infinite loop detected. The reader didn't progress when reading {box.Type} box");
+                throw new InvalidOperationException($"Infinite loop detected. The reader didn't progress when reading {box.type} box");
         }
     }
 
@@ -626,5 +635,19 @@ namespace MediaFramework.LowLevel.MP4
         None = 0,
         VIDE = 0x76696465,
         SOUN = 0x736f756e
+    }
+
+    // ISO 639-2 Code
+    // https://en.wikipedia.org/wiki/List_of_ISO_639-2_codes
+    // padding (1 bit) + character (5 bits)[3]
+    public enum ISOLanguage
+    {
+        ZXX = ('z' - 96) << 10 | ('x' - 96) << 5 | 'x' - 96,
+        UND = ('u' - 96) << 10 | ('n' - 96) << 5 | 'd' - 96,
+        ENG = ('e' - 96) << 10 | ('n' - 96) << 5 | 'g' - 96,
+        MUL = ('m' - 96) << 10 | ('u' - 96) << 5 | 'l' - 96,
+        MIS = ('m' - 96) << 10 | ('i' - 96) << 5 | 's' - 96,
+        FRA = ('f' - 96) << 10 | ('r' - 96) << 5 | 'a' - 96,
+        FRE = ('f' - 96) << 10 | ('r' - 96) << 5 | 'e' - 96,
     }
 }

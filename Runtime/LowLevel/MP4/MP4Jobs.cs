@@ -44,6 +44,7 @@ namespace MediaFramework.LowLevel.MP4
         InvalidBoxSize,
         InvalidBoxVersion,
         InvalidReadSize,
+        InvalidEntryCount,
         OverMaxPolicy,
         DuplicateBox,
         IndexOutOfReaderRange,
@@ -62,52 +63,6 @@ namespace MediaFramework.LowLevel.MP4
         public FixedString128Bytes Message;
     }
 
-    public struct MP4Validator : IDisposable
-    {
-        public UnsafeList<int> m_Groups;
-        public UnsafeList<ValidatorLog> m_Logs;
-
-        public int m_Length;
-        public int m_CurrentGroup;
-
-        public bool IsCreated => m_Groups.IsCreated && m_Logs.IsCreated;
-
-        public int Length => m_Length;
-
-        public bool HasError => m_Length > 0;
-
-        public MP4Validator(int capacity, Allocator allocator)
-        {
-            m_Groups = new UnsafeList<int>(capacity, allocator);
-            m_Logs = new UnsafeList<ValidatorLog>(capacity, allocator);
-
-            m_Length = 0;
-            m_CurrentGroup = 0;
-        }
-
-        public IEnumerable<ValidatorLog> GetLogs() => m_Logs;
-
-        public void NewGroup()
-        {
-            m_CurrentGroup++;
-        }
-
-        public void Report(MP4Error error, FixedString128Bytes message)
-        {
-            m_Groups.Add(m_CurrentGroup);
-            m_Logs.Add(new ValidatorLog
-            {
-                Error = error,
-                Message = message
-            });
-        }
-
-        public void Dispose()
-        {
-            m_Logs.Dispose();
-        }
-    }
-
     public unsafe struct MP4JobContext
     {
         public int BoxDepth;
@@ -119,13 +74,14 @@ namespace MediaFramework.LowLevel.MP4
 
         public ref TRAKBox CurrentTrack => ref Tracks.ElementAt(Tracks.Length - 1);
 
-        public MP4Error LogError(MP4Error error, in FixedString128Bytes message)
+        public MP4Error LogError(MP4Error error, int index, in FixedString128Bytes message)
         {
             Logger.Log(new JobLog
             {
                 Type = LogType.Error,
                 MetaData1 = Tracks.Length,
                 MetaData2 = (int)error,
+                MetaData3 = index,
             }, message);
 
             return error;

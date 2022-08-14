@@ -12,52 +12,8 @@ using Unity.Collections;
 
 namespace MP4.Boxes
 {
-    internal class HDLRTests
+    public class HDLRTests : BoxTestCore
     {
-        readonly byte[] hdlrSmall = {
-	        // Offset 0x0005CDA0 to 0x0005CDC0 small.mp4
-	        0x00, 0x00, 0x00, 0x21, 0x68, 0x64, 0x6C, 0x72, 0x00, 0x00, 0x00, 0x00,
-            0x00, 0x00, 0x00, 0x00, 0x76, 0x69, 0x64, 0x65, 0x00, 0x00, 0x00, 0x00,
-            0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00
-        };
-
-        private MP4JobContext context;
-
-        [OneTimeSetUp]
-        public void OneTimeSetUp()
-        {
-            context = new MP4JobContext();
-            context.Logger = new JobLogger(16, Allocator.Temp);
-            context.Tracks = new UnsafeList<TRAKBox>(1, Allocator.Temp);
-        }
-
-        [OneTimeTearDown]
-        public void OneTimeTearDown()
-        {
-            context.Logger.Dispose();
-            context.Tracks.Dispose();
-        }
-
-        [SetUp]
-        public void SetUp()
-        {
-            context.Tracks.Add(new TRAKBox());
-        }
-
-        [TearDown]
-        public void TearDown()
-        {
-            var logger = context.Logger;
-            var tracks = context.Tracks;
-
-            logger.Clear();
-            tracks.Clear();
-
-            context = new MP4JobContext();
-            context.Logger = logger;
-            context.Tracks = tracks;
-        }
-
         [Test]
         public unsafe void Read_VideoHandler_AllValueAreEqual()
         {
@@ -79,6 +35,7 @@ namespace MP4.Boxes
                 ref var track = ref context.CurrentTrack;
 
                 Assert.AreEqual(ISOHandler.VIDE, track.Handler, "Handler");
+                Assert.AreEqual(0, reader.Remains, "Remains");
             }
         }
 
@@ -92,7 +49,7 @@ namespace MP4.Boxes
             var reader = new BByteReader(ptr, hdlrSmall.Length);
 
             var isoBox = reader.ReadISOBox();
-            isoBox.Size = (uint)hdlrSmall.Length + 7;
+            isoBox.size = (uint)hdlrSmall.Length + 7;
 
             var error = HDLRBox.Read(ref context, ref reader, isoBox);
 
@@ -110,7 +67,7 @@ namespace MP4.Boxes
         }
 
         [Test]
-        public unsafe void Read_Duplicate_ReturnErrorAndLog()
+        public unsafe void Read_OneNoneDefaultValue_DuplicateBox()
         {
             fixed (byte* ptr = hdlrSmall)
             {
@@ -128,7 +85,7 @@ namespace MP4.Boxes
         }
 
         [Test]
-        public unsafe void Read_BoxSize0_ReturnErrorAndLog()
+        public unsafe void Read_BoxSize0_InvalidBoxSize()
         {
             fixed (byte* ptr = hdlrSmall)
             {
@@ -137,13 +94,20 @@ namespace MP4.Boxes
                 var reader = new BByteReader(ptr, hdlrSmall.Length);
 
                 var isoBox = reader.ReadISOBox();
-                isoBox.Size = 0;
+                isoBox.size = 0;
 
-                var error = TKHDBox.Read(ref context, ref reader, isoBox);
+                var error = HDLRBox.Read(ref context, ref reader, isoBox);
 
                 Assert.AreEqual(MP4Error.InvalidBoxSize, error, "Error");
                 Assert.AreEqual(1, context.Logger.Length, "Logger.Length");
             }
         }
+
+        readonly byte[] hdlrSmall = {
+	        // Offset 0x0005CDA0 to 0x0005CDC0 small.mp4
+	        0x00, 0x00, 0x00, 0x21, 0x68, 0x64, 0x6C, 0x72, 0x00, 0x00, 0x00, 0x00,
+            0x00, 0x00, 0x00, 0x00, 0x76, 0x69, 0x64, 0x65, 0x00, 0x00, 0x00, 0x00,
+            0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00
+        };
     }
 }
