@@ -30,7 +30,7 @@ namespace MP4.Boxes
 
                 ref var track = ref context.CurrentTrack;
 
-                Assert.AreEqual(1, track.TKHD.TrackID, "TrackID");
+                Assert.AreEqual(1, track.TrackID, "TrackID");
                 Assert.AreEqual(0, reader.Remains, "Remains");
             }
         }
@@ -55,7 +55,7 @@ namespace MP4.Boxes
 
                 ref var track = ref context.CurrentTrack;
 
-                Assert.AreEqual(1, track.TKHD.TrackID, "TrackID");
+                Assert.AreEqual(1, track.TrackID, "TrackID");
                 Assert.AreEqual(0, reader.Remains, "Remains");
             }
         }
@@ -66,7 +66,7 @@ namespace MP4.Boxes
             fixed (byte* ptr = tkhdSmallVideoVersion0)
             {
                 ref var track = ref context.CurrentTrack;
-                track.TKHD.TrackID = 1;
+                track.TrackID = 1;
 
                 var reader = new BByteReader(ptr, tkhdSmallVideoVersion0.Length);
 

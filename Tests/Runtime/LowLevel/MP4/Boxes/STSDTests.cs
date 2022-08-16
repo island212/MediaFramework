@@ -35,7 +35,7 @@ namespace MP4.Boxes
 
                 ref var track = ref context.CurrentTrack;
 
-                Assert.AreEqual(0, track.STSD.Index, "STSD.Index");
+                Assert.AreEqual(0, track.STSDIndex, "STSD.Index");
                 Assert.AreEqual(0, reader.Remains, "Remains");
             }
         }
@@ -46,7 +46,7 @@ namespace MP4.Boxes
             fixed (byte* ptr = stsdSmallVideo)
             {
                 ref var track = ref context.CurrentTrack;
-                track.STSD.Index = 5;
+                track.STSDIndex = 5;
 
                 var reader = new BByteReader(ptr, stsdSmallVideo.Length);
 

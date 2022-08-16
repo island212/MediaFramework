@@ -7,31 +7,74 @@ using MediaFramework.LowLevel.Unsafe;
 using UnityEngine;
 using System;
 using System.Collections.Generic;
+using System.Security.Cryptography;
 
 namespace MediaFramework.LowLevel.MP4
 {
+    public struct TimeSample
+    {
+        public uint count;
+        public uint delta;
+    }
+
+    public struct SampleChunk
+    {
+        public uint firstChunk;
+        public uint samplesPerChunk;
+        public uint sampleDescriptionIndex;
+    }
+
+    public struct ChunkOffset
+    {
+        public uint value;
+    }
+
+    public struct ChunkOffset64
+    {
+        public ulong value;
+    }
+
     public struct MP4VideoTrack
     {
-        public uint Duraton;
-        public uint TimeScale;
+        public uint ID;
+        public uint Timescale;
+        public ulong Duration;
         public ISOLanguage Language;
 
-        public BlobArray<byte> STTS;
+        public int Width, Heigth;
 
-        //public SequenceParameterSet SPS;
+        public int FrameCount;
+
+        public BlobArray<TimeSample> TimeToSampleTable;
+        public BlobArray<SampleChunk> SampleToChunkTable;
+        public BlobArray<ChunkOffset> ChunkOffsetTable;
+
+        //public BlobArray<byte> SPS;
+        //public BlobArray<byte> PPS;
     }
 
     public struct MP4AudioTrack
     {
-        public uint Duraton;
-        public uint TimeScale;
+        public uint ID;
+        public uint Timescale;
+        public ulong Duration;
         public ISOLanguage Language;
 
-        public BlobArray<byte> STTS;
+        public int ChannelCount;
+        public int SampleRate;
+
+        public BlobArray<TimeSample> TimeToSampleTable;
+        public BlobArray<SampleChunk> SampleToChunkTable;
+        public BlobArray<ChunkOffset> ChunkOffsetTable;
     }
 
     public struct MP4Header
     {
+        public ulong Duration;
+        public uint Timescale;
+
+        public long DataOffset;
+
         public BlobArray<MP4VideoTrack> Videos;
         public BlobArray<MP4AudioTrack> Audios;
     }
@@ -57,22 +100,21 @@ namespace MediaFramework.LowLevel.MP4
         Strict
     }
 
-    public struct ValidatorLog
-    {
-        public MP4Error Error;
-        public FixedString128Bytes Message;
-    }
-
-    public unsafe struct MP4JobContext
+    public struct MP4JobContext
     {
         public int BoxDepth;
+        public int VideoTrackCount;
+        public int AudioTrackCount;
 
-        public MVHDBox MVHD;
-        public UnsafeList<TRAKBox> Tracks;
+        public ulong Duration;
+        public uint Timescale;
+        public uint NextTrackID;
+
+        public UnsafeList<MP4JobTrackContext> Tracks;
 
         public JobLogger Logger;
 
-        public ref TRAKBox CurrentTrack => ref Tracks.ElementAt(Tracks.Length - 1);
+        public ref MP4JobTrackContext CurrentTrack => ref Tracks.ElementAt(Tracks.Length - 1);
 
         public MP4Error LogError(MP4Error error, int index, in FixedString128Bytes message)
         {
@@ -88,35 +130,142 @@ namespace MediaFramework.LowLevel.MP4
         }
     }
 
-    public struct MP4ParseJob : IJob
+    public struct MP4JobTrackContext
     {
-        public MP4Policy Policy;
+        public ISOHandler Handler;
+        public uint TrackID;
+        public uint Timescale;
+        public ulong Duration;
+        public ISOLanguage Language;
+
+        public int STSDIndex;
+        public SampleArray STTS;
+        public SampleArray STSC;
+        public SampleArray STCO;
+    }
+
+    public struct SampleArray
+    {
+        public int SampleIndex;
+        public int EntryCount;
+    }
+
+    public struct MP4BlobJob : IJob
+    {
         public BByteReader Reader;
 
+        public NativeReference<JobLogger> Logger;
         public NativeReference<BlobAssetReference<MP4Header>> Header;
-
+      
         public unsafe void Execute()
         {
             var context = new MP4JobContext();
-            context.Logger = new JobLogger(16, Allocator.TempJob);
-            context.Tracks = new UnsafeList<TRAKBox>(4, Allocator.Temp);
+            context.Logger = Logger.Value;
 
             var moovBox = Reader.ReadISOBox();
 
-            ISOBMFF.Read(ref context, ref Reader, moovBox);
-
-            if (Policy == MP4Policy.Strict)
-                goto clean;
+            var error = ISOBMFF.Read(ref context, ref Reader, moovBox);
 
             var builder = new BlobBuilder(Allocator.Temp);
             ref var header = ref builder.ConstructRoot<MP4Header>();
 
-            var videos = builder.Allocate(ref header.Videos, 2);
+            var videos = builder.Allocate(ref header.Videos, context.VideoTrackCount);
+            var audios = builder.Allocate(ref header.Audios, context.AudioTrackCount);
+
+            header.Duration = context.Duration;
+            header.Timescale = context.Timescale;
+
+            int videoCount = 0, audioCount = 0;
+            for (int i = 0; i < context.Tracks.Length; i++)
+            {
+                ref var source = ref context.Tracks.ElementAt(i);
+
+                switch (source.Handler)
+                {
+                    case ISOHandler.VIDE:
+                        {
+                            ref var dest = ref videos[videoCount++];
+
+                            dest.ID = source.TrackID;
+                            dest.Duration = source.Duration;
+                            dest.Timescale = source.Timescale;
+                            dest.Language = source.Language;
+
+                            BuildTimeToSampleTable(ref Reader, ref builder, ref dest.TimeToSampleTable, source.STTS);
+                            BuildSampleToChunkTable(ref Reader, ref builder, ref dest.SampleToChunkTable, source.STSC);
+                            BuildChunkOffsetTable(ref Reader, ref builder, ref dest.ChunkOffsetTable, source.STCO);
+                        }
+                        break;
+                    case ISOHandler.SOUN:
+                        {
+                            ref var dest = ref audios[audioCount++];
+
+                            dest.ID = source.TrackID;
+                            dest.Duration = source.Duration;
+                            dest.Timescale = source.Timescale;
+                            dest.Language = source.Language;
+
+                            BuildTimeToSampleTable(ref Reader, ref builder, ref dest.TimeToSampleTable, source.STTS);
+                            BuildSampleToChunkTable(ref Reader, ref builder, ref dest.SampleToChunkTable, source.STSC);
+                            BuildChunkOffsetTable(ref Reader, ref builder, ref dest.ChunkOffsetTable, source.STCO);
+                        }
+                        break;
+                }
+            }
+
+            Header.Value = builder.CreateBlobAssetReference<MP4Header>(Allocator.Persistent);
+            Logger.Value = context.Logger;
 
             builder.Dispose();
-
-        clean:
             context.Tracks.Dispose();
+        }
+
+        public static MP4Error BuildTimeToSampleTable(ref BByteReader reader, ref BlobBuilder builder, ref BlobArray<TimeSample> sttsArray, in SampleArray stts)
+        {
+            reader.Index = stts.SampleIndex;
+            var array = builder.Allocate(ref sttsArray, stts.EntryCount);
+            for (int i = 0; i < array.Length; i++)
+            {
+                array[i] = new TimeSample
+                {
+                    count = reader.ReadUInt32(),
+                    delta = reader.ReadUInt32()
+                };
+            }
+
+            return MP4Error.None;
+        }
+
+        public static MP4Error BuildSampleToChunkTable(ref BByteReader reader, ref BlobBuilder builder, ref BlobArray<SampleChunk> stscArray, in SampleArray stsc)
+        {
+            reader.Index = stsc.SampleIndex;
+            var array = builder.Allocate(ref stscArray, stsc.EntryCount);
+            for (int i = 0; i < array.Length; i++)
+            {
+                array[i] = new SampleChunk
+                {
+                    firstChunk = reader.ReadUInt32(),
+                    samplesPerChunk = reader.ReadUInt32(),
+                    sampleDescriptionIndex = reader.ReadUInt32()
+                };
+            }
+
+            return MP4Error.None;
+        }
+
+        public static MP4Error BuildChunkOffsetTable(ref BByteReader reader, ref BlobBuilder builder, ref BlobArray<ChunkOffset> stcoArray, in SampleArray stco)
+        {
+            reader.Index = stco.SampleIndex;
+            var array = builder.Allocate(ref stcoArray, stco.EntryCount);
+            for (int i = 0; i < array.Length; i++)
+            {
+                array[i] = new ChunkOffset
+                {
+                    value = reader.ReadUInt32()
+                };
+            }
+
+            return MP4Error.None;
         }
     }
 }

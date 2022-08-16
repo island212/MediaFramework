@@ -10,7 +10,7 @@ using UnityEngine.TestTools;
 
 namespace Codecs
 {
-    public class SequenceParameterSetTests
+    public class SPSNaluTests
     {
         readonly byte[] spsSmall =
         {
@@ -37,7 +37,7 @@ namespace Codecs
 
             var reader = new BByteReader(spsDataPtr, spsSmall.Length);
 
-            using var sps = new SequenceParameterSet();
+            using var sps = new SPSNalu();
             var error = sps.Parse(reader, Allocator.Temp);
 
             Assert.AreEqual(SPSError.None, error, "SPSError");
@@ -48,21 +48,20 @@ namespace Codecs
 
             Assert.AreEqual(0, sps.ID, "ID");
 
-            Assert.AreEqual(ChromaSubsampling.YUV420, sps.Chroma.Format, "ChromaFormat");
-            Assert.AreEqual(8, sps.Chroma.BitDepthLuma, "BitDepthLuma");
-            Assert.AreEqual(8, sps.Chroma.BitDepthChroma, "BitDepthChroma");
+            Assert.AreEqual(ChromaSubsampling.YUV420, sps.ChromaFormat, "ChromaFormat");
+            Assert.AreEqual(8, sps.BitDepth, "BitDepth");
 
-            Assert.IsTrue(sps.ScalingMatrix == null, "ScalingMatrix");
+            Assert.IsFalse(sps.ScalingMatrix.IsCreated, "ScalingMatrix");
 
             Assert.AreEqual(1024, sps.MaxFrameNum, "MaxFrameNum");
 
-            Assert.AreEqual(0, sps.PicOrderCnt.Type, "PicOrderCntType");
-            Assert.AreEqual(2, sps.PicOrderCnt.MaxNumRefFrames, "MaxNumRefFrames");
-            Assert.AreEqual(2048, sps.PicOrderCnt.MaxLsb, "MaxLsb");
-            Assert.AreEqual(0, sps.PicOrderCnt.OffsetForNonRefPic, "OffsetForNonRefPic");
-            Assert.AreEqual(0, sps.PicOrderCnt.OffsetForTopToBottomField, "OffsetForTopToBottomField");
-            Assert.AreEqual(0, sps.PicOrderCnt.NumRefFramesInCycle, "NumRefFramesInCycle");
-            Assert.IsTrue(sps.PicOrderCnt.OffsetRefFrame == null, "OffsetRefFrame");
+            Assert.AreEqual(0, sps.POCType, "PicOrderCntType");
+            Assert.AreEqual(2, sps.MaxNumRefFrames, "MaxNumRefFrames");
+            Assert.AreEqual(2048, sps.MaxPOCLsb, "MaxLsb");
+            Assert.AreEqual(0, sps.OffsetForNonRefPic, "OffsetForNonRefPic");
+            Assert.AreEqual(0, sps.OffsetForTopToBottomField, "OffsetForTopToBottomField");
+            Assert.AreEqual(0, sps.NumRefFramesInCycle, "NumRefFramesInCycle");
+            Assert.IsTrue(sps.OffsetRefFrames == null, "OffsetRefFrames");
 
             Assert.IsFalse(sps.GapsInFrameNumValueAllowed, "GapsInFrameNumValueAllowed");
             Assert.AreEqual(35, sps.MbWidth, "MbWidth");
@@ -84,11 +83,11 @@ namespace Codecs
             Assert.AreEqual(AVColorTransferCharacteristic.BT709, sps.TransferCharacteristics, "TransferCharacteristics");
             Assert.AreEqual(AVColorSpace.BT709, sps.MatrixCoefficients, "MatrixCoefficients");
 
-            Assert.AreEqual(0, sps.LocType.TopField, "ChromaSampleLocType TopField");
-            Assert.AreEqual(0, sps.LocType.BottomField, "ChromaSampleLocType BottomField");
+            Assert.AreEqual(0, sps.ChromaLoc.TopField, "ChromaSampleLocType TopField");
+            Assert.AreEqual(0, sps.ChromaLoc.BottomField, "ChromaSampleLocType BottomField");
 
-            Assert.AreEqual(1, sps.Framerate.NumUnitsInTick, "NumUnitsInTick");
-            Assert.AreEqual(60, sps.Framerate.TimeScale, "TimeScale");
+            Assert.AreEqual(1, sps.NumUnitsInTick, "NumUnitsInTick");
+            Assert.AreEqual(60, sps.Timescale, "TimeScale");
         }
     }
 }

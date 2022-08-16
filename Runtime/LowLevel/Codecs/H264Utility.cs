@@ -1,8 +1,10 @@
-﻿using UnityEngine.TestTools;
+﻿using MediaFramework.LowLevel.Unsafe;
+using Unity.Entities;
+using UnityEngine.TestTools;
 
 namespace MediaFramework.LowLevel.Codecs
 {
-    public enum H264Profile : ushort
+    public enum H264Profile
     {
         Baseline = H264ProfileCode.Baseline << 8,
         ConstrainedBaseline = H264ProfileCode.Baseline << 8 | 0x40,
@@ -31,7 +33,7 @@ namespace MediaFramework.LowLevel.Codecs
         EnhancedMultiviewDepthHigh = H264ProfileCode.EnhancedMultiviewDepthHigh << 8,
     }
 
-    public enum H264ProfileCode : byte
+    public enum H264ProfileCode
     {
         Baseline = 66,
         Extended = 88,

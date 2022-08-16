@@ -30,9 +30,9 @@ namespace MP4.Boxes
 
                 ref var track = ref context.CurrentTrack;
 
-                Assert.AreEqual(267264, track.MDHD.Duration, "Duration");
-                Assert.AreEqual(48000, track.MDHD.Timescale, "Timescale");
-                Assert.AreEqual(ISOLanguage.ENG, track.MDHD.Language, "Language");
+                Assert.AreEqual(267264, track.Duration, "Duration");
+                Assert.AreEqual(48000, track.Timescale, "Timescale");
+                Assert.AreEqual(ISOLanguage.ENG, track.Language, "Language");
                 Assert.AreEqual(0, reader.Remains, "Remains");
             }
         }
@@ -57,9 +57,9 @@ namespace MP4.Boxes
 
                 ref var track = ref context.CurrentTrack;
 
-                Assert.AreEqual(267264, track.MDHD.Duration, "Duration");
-                Assert.AreEqual(48000, track.MDHD.Timescale, "Timescale");
-                Assert.AreEqual(ISOLanguage.ENG, track.MDHD.Language, "Language");
+                Assert.AreEqual(267264, track.Duration, "Duration");
+                Assert.AreEqual(48000, track.Timescale, "Timescale");
+                Assert.AreEqual(ISOLanguage.ENG, track.Language, "Language");
                 Assert.AreEqual(0, reader.Remains, "Remains");
             }
         }
@@ -70,7 +70,7 @@ namespace MP4.Boxes
             fixed (byte* ptr = mdhdSmallVideoVersion0)
             {
                 ref var track = ref context.CurrentTrack;
-                track.MDHD.Duration = 1;
+                track.Duration = 1;
 
                 var reader = new BByteReader(ptr, mdhdSmallVideoVersion0.Length);
 

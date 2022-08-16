@@ -27,9 +27,9 @@ namespace MP4.Boxes
                 Assert.AreEqual(MP4Error.None, error, "Error");
                 Assert.AreEqual(0, context.Logger.Length, "Logger.Length");
 
-                Assert.AreEqual(90000, context.MVHD.Timescale, "TimeScale");
-                Assert.AreEqual(501120, context.MVHD.Duration, "Duration");
-                Assert.AreEqual(3, context.MVHD.NextTrackID, "NextTrackID");
+                Assert.AreEqual(90000, context.Timescale, "TimeScale");
+                Assert.AreEqual(501120, context.Duration, "Duration");
+                Assert.AreEqual(3, context.NextTrackID, "NextTrackID");
                 Assert.AreEqual(0, reader.Remains, "Remains");
             }
         }
@@ -52,9 +52,9 @@ namespace MP4.Boxes
                 Assert.AreEqual(MP4Error.None, error, "Error");
                 Assert.AreEqual(0, context.Logger.Length, "Logger.Length");
 
-                Assert.AreEqual(90000, context.MVHD.Timescale, "TimeScale");
-                Assert.AreEqual(501120, context.MVHD.Duration, "Duration");
-                Assert.AreEqual(3, context.MVHD.NextTrackID, "NextTrackID");
+                Assert.AreEqual(90000, context.Timescale, "TimeScale");
+                Assert.AreEqual(501120, context.Duration, "Duration");
+                Assert.AreEqual(3, context.NextTrackID, "NextTrackID");
                 Assert.AreEqual(0, reader.Remains, "Remains");
             }
         }
@@ -64,8 +64,8 @@ namespace MP4.Boxes
         {
             fixed (byte* ptr = mvhdSmallVersion0)
             {
-                context.MVHD.Duration = 60;
-                context.MVHD.Timescale = 1;
+                context.Duration = 60;
+                context.Timescale = 1;
 
                 var reader = new BByteReader(ptr, mvhdSmallVersion0.Length);
 

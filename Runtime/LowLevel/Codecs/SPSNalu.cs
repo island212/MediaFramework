@@ -5,6 +5,9 @@ using Unity.Collections.LowLevel.Unsafe;
 using MediaFramework.LowLevel.Unsafe;
 using Unity.Mathematics;
 using UnityEngine.TestTools;
+using Unity.Entities;
+using Palmmedia.ReportGenerator.Core.Parser.Filtering;
+using System.Numerics;
 
 namespace MediaFramework.LowLevel.Codecs
 {
@@ -83,11 +86,9 @@ namespace MediaFramework.LowLevel.Codecs
 
     public enum SPSError
     {
-        None = 0,
-
+        None = ReaderError.None,
         ReaderOverflow = ReaderError.Overflow,
         ReaderOutOfRange = ReaderError.OutOfRange,
-
         InvalidLength = 1000,
         ForbiddenZeroBit,
         InvalidRefID,
@@ -113,69 +114,88 @@ namespace MediaFramework.LowLevel.Codecs
         InvalidTimeInfo,
     }
 
-    public struct ScalingMatrix
+    public unsafe struct ScalingMatrix
     {
-        public ScalingMatrix4x4 matrix00;
-        public ScalingMatrix4x4 matrix01;
-        public ScalingMatrix4x4 matrix02;
-        public ScalingMatrix4x4 matrix03;
-        public ScalingMatrix4x4 matrix04;
-        public ScalingMatrix4x4 matrix05;
-        public ScalingMatrix8x8 matrix06;
-        public ScalingMatrix8x8 matrix07;
+        public static readonly byte[] DefaultIntra4x4 = new byte[] 
+        { 
+            6, 13, 13, 20, 20, 20, 28, 28, 28, 28, 32, 32, 32, 37, 37, 42 
+        };
 
-        public ScalingMatrix8x8 matrix08;
-        public ScalingMatrix8x8 matrix09;
-        public ScalingMatrix8x8 matrix10;
-        public ScalingMatrix8x8 matrix11;
+        public static readonly byte[] DefaultInter4x4 = new byte[] 
+        { 
+            10, 14, 14, 20, 20, 20, 24, 24, 24, 24, 27, 27, 27, 30, 30, 34 
+        };
 
-        public unsafe SPSError Parse(ref BBitReader reader, bool isYUV444)
+        public static readonly byte[] DefaultIntra8x8 = new byte[]
         {
-            fixed (ScalingMatrix4x4* default4Intra = &ScalingMatrix4x4.DefaultIntra)
-            fixed (ScalingMatrix4x4* default4Inter = &ScalingMatrix4x4.DefaultInter)
-            fixed (ScalingMatrix8x8* default8Intra = &ScalingMatrix8x8.DefaultIntra)
-            fixed (ScalingMatrix8x8* default8Inter = &ScalingMatrix8x8.DefaultInter)
-            {
-                var mat00 = (uint*)UnsafeUtility.AddressOf(ref matrix00);
-                var mat01 = (uint*)UnsafeUtility.AddressOf(ref matrix01);
-                var mat02 = (uint*)UnsafeUtility.AddressOf(ref matrix02);
-                var mat03 = (uint*)UnsafeUtility.AddressOf(ref matrix03);
-                var mat04 = (uint*)UnsafeUtility.AddressOf(ref matrix04);
-                var mat05 = (uint*)UnsafeUtility.AddressOf(ref matrix05);
-                var mat06 = (uint*)UnsafeUtility.AddressOf(ref matrix06);
-                var mat07 = (uint*)UnsafeUtility.AddressOf(ref matrix07);
+            06, 10, 10, 13, 11, 13, 16, 16, 16, 16, 18, 18, 18, 18, 18, 23,
+            23, 23, 23, 23, 23, 25, 25, 25, 25, 25, 25, 25, 27, 27, 27, 27,
+            27, 27, 27, 27, 29, 29, 29, 29, 29, 29, 29, 31, 31, 31, 31, 31,
+            31, 33, 33, 33, 33, 33, 36, 36, 36, 36, 38, 38, 38, 40, 40, 42,
+        };
 
+        public static readonly byte[] DefaultInter8x8 = new byte[]
+        {
+            09, 13, 13, 15, 13, 15, 17, 17, 17, 17, 19, 19, 19, 19, 19, 21,
+            21, 21, 21, 21, 21, 22, 22, 22, 22, 22, 22, 22, 24, 24, 24, 24,
+            24, 24, 24, 24, 25, 25, 25, 25, 25, 25, 25, 27, 27, 27, 27, 27,
+            27, 28, 28, 28, 28, 28, 30, 30, 30, 30, 32, 32, 32, 33, 33, 35,
+        };
+
+        public bool IsCreated => m_Buffer != null;
+
+        public byte* m_Buffer;
+
+        public byte* mat00 => m_Buffer;
+        public byte* mat01 => m_Buffer + 16;
+        public byte* mat02 => m_Buffer + 32;
+        public byte* mat03 => m_Buffer + 48;
+        public byte* mat04 => m_Buffer + 64;
+        public byte* mat05 => m_Buffer + 70;
+        public byte* mat06 => m_Buffer + 32;
+        public byte* mat07 => m_Buffer + 32;
+        public byte* mat08 => m_Buffer + 32;
+        public byte* mat09 => m_Buffer + 32;
+        public byte* mat10 => m_Buffer + 32;
+        public byte* mat11 => m_Buffer + 32;
+
+        public SPSError Parse(ref BBitReader reader, bool isYUV444, Allocator allocator)
+        {
+            m_Buffer = (byte*)UnsafeUtility.Malloc(6 * 16 + 6 * 64, 1, allocator);
+
+            fixed (byte* default4Intra = DefaultIntra4x4)
+            fixed (byte* default4Inter = DefaultInter4x4)
+            fixed (byte* default8Intra = DefaultIntra8x8)
+            fixed (byte* default8Inter = DefaultInter8x8)
+            {
                 SPSError error;
-                error = ParseScalingMatrices(ref reader, mat00, 16, (uint*)default4Intra, (uint*)default4Intra);    // Intra Y
+
+                error = ParseScalingMatrices(ref reader, mat00, 16, default4Intra, default4Intra);  // Intra Y
                 if (error != SPSError.None) return error;
-                error = ParseScalingMatrices(ref reader, mat01, 16, (uint*)default4Intra, mat00);                   // Intra Cr
+                error = ParseScalingMatrices(ref reader, mat01, 16, default4Intra, mat00);          // Intra Cr
                 if (error != SPSError.None) return error;
-                error = ParseScalingMatrices(ref reader, mat02, 16, (uint*)default4Intra, mat01);                   // Intra Cb
+                error = ParseScalingMatrices(ref reader, mat02, 16, default4Intra, mat01);          // Intra Cb
                 if (error != SPSError.None) return error;
-                error = ParseScalingMatrices(ref reader, mat03, 16, (uint*)default4Inter, (uint*)default4Inter);    // Inter Y
+                error = ParseScalingMatrices(ref reader, mat03, 16, default4Inter, default4Inter);  // Inter Y
                 if (error != SPSError.None) return error;
-                error = ParseScalingMatrices(ref reader, mat04, 16, (uint*)default4Intra, mat03);                   // Inter Cr
+                error = ParseScalingMatrices(ref reader, mat04, 16, default4Intra, mat03);          // Inter Cr
                 if (error != SPSError.None) return error;
-                error = ParseScalingMatrices(ref reader, mat05, 16, (uint*)default4Intra, mat04);                   // Inter Cb
+                error = ParseScalingMatrices(ref reader, mat05, 16, default4Intra, mat04);          // Inter Cb
                 if (error != SPSError.None) return error;
-                error = ParseScalingMatrices(ref reader, mat06, 64, (uint*)default8Intra, (uint*)default8Intra);    // Intra Y
+                error = ParseScalingMatrices(ref reader, mat06, 64, default8Intra, default8Intra);  // Intra Y
                 if (error != SPSError.None) return error;
-                error = ParseScalingMatrices(ref reader, mat07, 64, (uint*)default8Inter, (uint*)default8Inter);    // Inter Y
+                error = ParseScalingMatrices(ref reader, mat07, 64, default8Inter, default8Inter);  // Inter Y
                 if (error != SPSError.None) return error;
+
                 if (isYUV444)
                 {
-                    var mat08 = (uint*)UnsafeUtility.AddressOf(ref matrix08);
-                    var mat09 = (uint*)UnsafeUtility.AddressOf(ref matrix09);
-                    var mat10 = (uint*)UnsafeUtility.AddressOf(ref matrix10);
-                    var mat11 = (uint*)UnsafeUtility.AddressOf(ref matrix11);
-
-                    error = ParseScalingMatrices(ref reader, mat08, 64, (uint*)default8Intra, mat06);               // Intra Cr
+                    error = ParseScalingMatrices(ref reader, mat08, 64, default8Intra, mat06);      // Intra Cr
                     if (error != SPSError.None) return error;
-                    error = ParseScalingMatrices(ref reader, mat09, 64, (uint*)default8Inter, mat07);               // Inter Cr
+                    error = ParseScalingMatrices(ref reader, mat09, 64, default8Inter, mat07);      // Inter Cr
                     if (error != SPSError.None) return error;
-                    error = ParseScalingMatrices(ref reader, mat10, 64, (uint*)default8Intra, mat08);               // Intra Cb
+                    error = ParseScalingMatrices(ref reader, mat10, 64, default8Intra, mat08);      // Intra Cb
                     if (error != SPSError.None) return error;
-                    error = ParseScalingMatrices(ref reader, mat11, 64, (uint*)default8Inter, mat09);               // Inter Cb
+                    error = ParseScalingMatrices(ref reader, mat11, 64, default8Inter, mat09);      // Inter Cb
                     if (error != SPSError.None) return error;
                 }
 
@@ -183,7 +203,7 @@ namespace MediaFramework.LowLevel.Codecs
             }
         }
 
-        private unsafe static SPSError ParseScalingMatrices(ref BBitReader reader, uint* scalingList, int size, uint* defaultMatrix, uint* fallback)
+        private unsafe static SPSError ParseScalingMatrices(ref BBitReader reader, byte* scalingList, int size, byte* defaultMatrix, byte* fallback)
         {
             var error = reader.TryReadBool(out var seq_scaling_list_present_flag);
             if (error != ReaderError.None)
@@ -195,8 +215,7 @@ namespace MediaFramework.LowLevel.Codecs
                 var nextScale = 8;
 
                 int deltaScale;
-                error = reader.TryReadSExpGolomb(out deltaScale);
-                if (error != ReaderError.None)
+                if ((error = reader.TryReadSExpGolomb(out deltaScale)) != ReaderError.None)
                     return (SPSError)error;
 
                 if (deltaScale < -128 || deltaScale > 127)
@@ -206,18 +225,17 @@ namespace MediaFramework.LowLevel.Codecs
 
                 if (nextScale == 0)
                 {
-                    UnsafeUtility.MemCpy(scalingList, defaultMatrix, size * sizeof(uint));
+                    UnsafeUtility.MemCpy(scalingList, defaultMatrix, size);
                 }
 
                 lastScale = nextScale;
-                scalingList[0] = (uint)lastScale;
+                scalingList[0] = (byte)lastScale;
 
                 for (int j = 1; j < size; j++)
                 {
                     if (nextScale != 0)
                     {
-                        error = reader.TryReadSExpGolomb(out deltaScale);
-                        if (error != ReaderError.None)
+                        if ((error = reader.TryReadSExpGolomb(out deltaScale)) != ReaderError.None)
                             return (SPSError)error;
 
                         if (deltaScale < -128 || deltaScale > 127)
@@ -227,55 +245,16 @@ namespace MediaFramework.LowLevel.Codecs
                     }
 
                     lastScale = nextScale == 0 ? lastScale : nextScale;
-                    scalingList[j] = (uint)lastScale;
+                    scalingList[j] = (byte)lastScale;
                 }
             }
             else
             {
-                UnsafeUtility.MemCpy(scalingList, fallback, size * sizeof(uint));
+                UnsafeUtility.MemCpy(scalingList, fallback, size);
             }
 
             return SPSError.None;
         }
-    }
-
-    public struct ScalingMatrix4x4
-    {
-        public static readonly ScalingMatrix4x4 DefaultIntra = new ScalingMatrix4x4
-        {
-            value = new uint4x4(6, 13, 13, 20, 20, 20, 28, 28, 28, 28, 32, 32, 32, 37, 37, 42)
-        };
-
-        public static readonly ScalingMatrix4x4 DefaultInter = new ScalingMatrix4x4
-        {
-            value = new uint4x4(10, 14, 14, 20, 20, 20, 24, 24, 24, 24, 27, 27, 27, 30, 30, 34)
-        };
-
-        public uint4x4 value;
-    }
-
-    public struct ScalingMatrix8x8
-    {
-        public static readonly ScalingMatrix8x8 DefaultIntra = new ScalingMatrix8x8
-        {
-            value0 = new uint4x4(06, 10, 10, 13, 11, 13, 16, 16, 16, 16, 18, 18, 18, 18, 18, 23),
-            value1 = new uint4x4(23, 23, 23, 23, 23, 25, 25, 25, 25, 25, 25, 25, 27, 27, 27, 27),
-            value2 = new uint4x4(27, 27, 27, 27, 29, 29, 29, 29, 29, 29, 29, 31, 31, 31, 31, 31),
-            value3 = new uint4x4(31, 33, 33, 33, 33, 33, 36, 36, 36, 36, 38, 38, 38, 40, 40, 42)
-        };
-
-        public static readonly ScalingMatrix8x8 DefaultInter = new ScalingMatrix8x8
-        {
-            value0 = new uint4x4(09, 13, 13, 15, 13, 15, 17, 17, 17, 17, 19, 19, 19, 19, 19, 21),
-            value1 = new uint4x4(21, 21, 21, 21, 21, 22, 22, 22, 22, 22, 22, 22, 24, 24, 24, 24),
-            value2 = new uint4x4(24, 24, 24, 24, 25, 25, 25, 25, 25, 25, 25, 27, 27, 27, 27, 27),
-            value3 = new uint4x4(27, 28, 28, 28, 28, 28, 30, 30, 30, 30, 32, 32, 32, 33, 33, 35)
-        };
-
-        public uint4x4 value0;
-        public uint4x4 value1;
-        public uint4x4 value2;
-        public uint4x4 value3;
     }
 
     [StructLayout(LayoutKind.Sequential, Size = 4)]
@@ -321,19 +300,118 @@ namespace MediaFramework.LowLevel.Codecs
         };
     }
 
-    public unsafe struct SPSChromaFormat
+    public struct ChromaSampleLocType
     {
-        public ChromaSubsampling Format;
-        public uint BitDepthLuma;
-        public uint BitDepthChroma;
-        public bool SeparateColourPlane; // separate_colour_plane_flag
-        public bool TransformBypass;     // qpprime_y_zero_transform_bypass_flag
+        public int TopField;
+        public int BottomField;
+    }
 
-        public int ArrayType => !SeparateColourPlane ? (int)Format : 0;
+    /// <summary>
+    /// Sequence Parameter Set ITU-T H.264 08/2021 7.3.2.1.1
+    /// https://www.itu.int/ITU-T/recommendations/rec.aspx?rec=14659&lang=en
+    /// </summary>
+    public unsafe struct SPSNalu : IDisposable
+    {
+        public Allocator Allocator;
 
-        public uint RawMbBits => 256u * BitDepthLuma + 2u * MbWidthC * MbHeightC * BitDepthChroma;
+        public BitField32 Flags;
 
-        public uint MbWidthC => Format switch
+        public uint ID;
+        public SPSProfile Profile;
+        public ChromaSubsampling ChromaFormat;
+        public uint BitDepth;
+        public ScalingMatrix ScalingMatrix;
+
+        public AVColorPrimaries ColourPrimaries;
+        public AVColorTransferCharacteristic TransferCharacteristics;
+        public AVColorSpace MatrixCoefficients;
+
+        public uint MbWidth, MbHeigth;
+        public uint CropLeft, CropRight;
+        public uint CropTop, CropBottom;
+        public IntRational SAR;
+
+        public int MaxFrameNum;
+        public int MaxNumRefFrames;
+
+        public uint NumUnitsInTick;
+        public uint Timescale;
+        public ChromaSampleLocType ChromaLoc;
+
+        public int POCType;
+        public int MaxPOCLsb;
+        public int OffsetForNonRefPic;
+        public int OffsetForTopToBottomField;
+        public int NumRefFramesInCycle;
+        public int* OffsetRefFrames;
+
+        public uint Width => PictureWidth - CropLeft - CropRight;
+
+        public uint Height => PictureHeight - CropTop - CropBottom;
+
+        public uint PictureWidth => MbWidth << 4;
+
+        public uint PictureHeight => MbHeigth << 4;
+
+        public bool SeparateColourPlane
+        {
+            get => Flags.IsSet(0);
+            set => Flags.SetBits(0, value);
+        }
+
+        public bool TransformBypass
+        {
+            get => Flags.IsSet(1);
+            set => Flags.SetBits(1, value);
+        }
+
+        public bool DeltaPOCAlwaysZero
+        {
+            get => Flags.IsSet(2);
+            set => Flags.SetBits(2, value);
+        }
+
+        public bool GapsInFrameNumValueAllowed
+        {
+            get => Flags.IsSet(3);
+            set => Flags.SetBits(3, value);
+        }
+
+        public bool FrameMbsOnly
+        {
+            get => Flags.IsSet(4);
+            set => Flags.SetBits(4, value);
+        }
+
+        public bool MbAdaptiveFrameField
+        {
+            get => Flags.IsSet(5);
+            set => Flags.SetBits(5, value);
+        }
+
+        public bool Direct8x8Inference
+        {
+            get => Flags.IsSet(6);
+            set => Flags.SetBits(6, value);
+        }
+
+        public bool VideoFullRange
+        {
+            get => Flags.IsSet(7);
+            set => Flags.SetBits(7, value);
+        }
+
+        public bool FixedFrameRate
+        {
+            get => Flags.IsSet(8);
+            set => Flags.SetBits(8, value);
+        }
+
+        public int ArrayType => !SeparateColourPlane ? (int)ChromaFormat : 0;
+
+        public uint RawMbBits => 256u * BitDepth + 2u * MbWidthC * MbHeightC * BitDepth;
+
+        public uint MbWidthC => ChromaFormat switch
         {
             ChromaSubsampling.YUV420 => 8u,
             ChromaSubsampling.YUV422 => 8u,
@@ -341,7 +419,7 @@ namespace MediaFramework.LowLevel.Codecs
             _ => 16u,
         };
 
-        public uint MbHeightC => Format switch
+        public uint MbHeightC => ChromaFormat switch
         {
             ChromaSubsampling.YUV420 => 8u,
             ChromaSubsampling.YUV422 => 16u,
@@ -349,7 +427,7 @@ namespace MediaFramework.LowLevel.Codecs
             _ => 16u,
         };
 
-        public uint SubWidthC => Format switch
+        public uint SubWidthC => ChromaFormat switch
         {
             ChromaSubsampling.YUV420 => 2u,
             ChromaSubsampling.YUV422 => 2u,
@@ -357,121 +435,26 @@ namespace MediaFramework.LowLevel.Codecs
             _ => 0u,
         };
 
-        public uint SubHeightC => Format switch
+        public uint SubHeightC => ChromaFormat switch
         {
             ChromaSubsampling.YUV420 => 2u,
             ChromaSubsampling.YUV422 => 1u,
             ChromaSubsampling.YUV444 => !SeparateColourPlane ? 1u : 0u,
             _ => 0u,
         };
-    }
-
-    public unsafe struct SPSPicOrderCnt
-    {
-        public int Type;
-        public int MaxNumRefFrames;
-
-        public uint MaxLsb;
-
-        public int OffsetForNonRefPic;
-        public int OffsetForTopToBottomField;
-        public int NumRefFramesInCycle;
-        public int* OffsetRefFrame;
-    }
-
-    public struct ChromaSampleLocType
-    {
-        public int TopField;
-        public int BottomField;
-    }
-
-    public struct SPSFramerate
-    {
-        public double Value => TimeScale > 0 ? (double)NumUnitsInTick / TimeScale : 0;
-
-        public uint NumUnitsInTick;
-        public uint TimeScale;
-    }
-
-    /// <summary>
-    /// Sequence Parameter Set ITU-T H.264 08/2021 7.3.2.1.1
-    /// https://www.itu.int/ITU-T/recommendations/rec.aspx?rec=14659&lang=en
-    /// </summary>
-    public unsafe struct SequenceParameterSet : IDisposable
-    {
-        public Allocator Allocator;
-
-        public uint ID;
-        public SPSProfile Profile;
-        public SPSChromaFormat Chroma;
-        public ScalingMatrix* ScalingMatrix;
-
-        public uint MaxFrameNum;
-        public SPSPicOrderCnt PicOrderCnt;
-
-        public uint MbWidth, MbHeigth;
-        public uint CropLeft, CropRight;
-        public uint CropTop, CropBottom;
-
-        public IntRational SAR;
-
-        public AVColorPrimaries ColourPrimaries;
-        public AVColorTransferCharacteristic TransferCharacteristics;
-        public AVColorSpace MatrixCoefficients;
-
-        public ChromaSampleLocType LocType;
-        public SPSFramerate Framerate;
-
-        public BitField32 Flags;
-
-        public uint PictureWidth => MbWidth << 4;
-
-        public uint PictureHeight => MbHeigth << 4;
-
-        public bool DeltaPOCAlwaysZero
-        {
-            get => Flags.IsSet(0);
-            set => Flags.SetBits(0, value);
-        }
-
-        public bool GapsInFrameNumValueAllowed
-        {
-            get => Flags.IsSet(1);
-            set => Flags.SetBits(1, value);
-        }
-
-        public bool FrameMbsOnly
-        {
-            get => Flags.IsSet(2);
-            set => Flags.SetBits(2, value);
-        }
-
-        public bool MbAdaptiveFrameField
-        {
-            get => Flags.IsSet(3);
-            set => Flags.SetBits(3, value);
-        }
-
-        public bool Direct8x8Inference
-        {
-            get => Flags.IsSet(4);
-            set => Flags.SetBits(4, value);
-        }
-
-        public bool VideoFullRange
-        {
-            get => Flags.IsSet(5);
-            set => Flags.SetBits(5, value);
-        }
-
-        public bool FixedFrameRate
-        {
-            get => Flags.IsSet(6);
-            set => Flags.SetBits(6, value);
-        }
 
         public SPSError Parse(BByteReader reader, Allocator allocator)
         {
+            Allocator = allocator;
+
+            // Default value
+            ColourPrimaries = AVColorPrimaries.UNSPECIFIED;
+            TransferCharacteristics = AVColorTransferCharacteristic.UNSPECIFIED;
+            MatrixCoefficients = AVColorSpace.UNSPECIFIED;
+
+            ChromaFormat = ChromaSubsampling.YUV420;
+            BitDepth = 8;
+
             if (reader.Length < 4)
                 return SPSError.InvalidLength;
 
@@ -492,16 +475,6 @@ namespace MediaFramework.LowLevel.Codecs
             Profile.Type = reader.ReadUInt8();          // profile_idc
             Profile.Constraints = reader.ReadUInt8();   // profile_iop
             Profile.Level = reader.ReadUInt8();         // level_idc
-
-            Chroma.Format = ChromaSubsampling.YUV420;
-            Chroma.BitDepthLuma = 8;
-            Chroma.BitDepthChroma = 8;
-
-            ColourPrimaries = AVColorPrimaries.UNSPECIFIED;
-            TransferCharacteristics = AVColorTransferCharacteristic.UNSPECIFIED;
-            MatrixCoefficients = AVColorSpace.UNSPECIFIED;
-
-            Allocator = allocator;
 
             var spsData = stackalloc byte[reader.Remains];
             int length = CopyAndSanitizeSPSData(spsData, reader.m_Head, reader.Remains);
@@ -527,12 +500,13 @@ namespace MediaFramework.LowLevel.Codecs
                 if (chroma_format > 3)
                     return SPSError.InvalidChromaFormat;
 
-                Chroma.Format = (ChromaSubsampling)chroma_format;
-                if (Chroma.Format == ChromaSubsampling.YUV444)
+                ChromaFormat = (ChromaSubsampling)chroma_format;
+                if (ChromaFormat == ChromaSubsampling.YUV444)
                 {
-                    rError = spsReader.TryReadBool(out Chroma.SeparateColourPlane);
-                    if (rError != ReaderError.None)
+                    if ((rError = spsReader.TryReadBool(out var separateColourPlane)) != ReaderError.None)
                         return (SPSError)rError;
+
+                    SeparateColourPlane = separateColourPlane;
                 }
 
                 uint bit_depth_luma_minus8;
@@ -542,7 +516,7 @@ namespace MediaFramework.LowLevel.Codecs
                 if (bit_depth_luma_minus8 > 6)
                     return SPSError.InvalidBitDepthLuma;
 
-                Chroma.BitDepthLuma = (byte)(bit_depth_luma_minus8 + 8);
+                BitDepth = (byte)(bit_depth_luma_minus8 + 8);
 
                 uint bit_depth_chroma_minus8;
                 if ((rError = spsReader.TryReadUExpGolomb(out bit_depth_chroma_minus8)) != ReaderError.None)
@@ -551,23 +525,20 @@ namespace MediaFramework.LowLevel.Codecs
                 if (bit_depth_chroma_minus8 > 6)
                     return SPSError.InvalidBitDepthChroma;
 
-                Chroma.BitDepthChroma = (byte)(bit_depth_chroma_minus8 + 8);
-
-                if (Chroma.BitDepthLuma != Chroma.BitDepthChroma)
+                if (BitDepth != bit_depth_chroma_minus8 + 8)
                     return SPSError.ConflictingBitDepth;
 
-                if ((rError = spsReader.TryReadBool(out Chroma.TransformBypass)) != ReaderError.None)
+                if ((rError = spsReader.TryReadBool(out var transformBypass)) != ReaderError.None)
                     return (SPSError)rError;
+
+                TransformBypass = transformBypass;
 
                 if ((rError = spsReader.TryReadBool(out var matrixPresent)) != ReaderError.None)
                     return (SPSError)rError;
 
                 if (matrixPresent)
                 {
-                    if (ScalingMatrix == null)
-                        ScalingMatrix = (ScalingMatrix*)UnsafeUtility.Malloc(sizeof(ScalingMatrix), 4, Allocator);
-
-                    var matError = ScalingMatrix->Parse(ref spsReader, Chroma.Format == ChromaSubsampling.YUV444);
+                    var matError = ScalingMatrix.Parse(ref spsReader, ChromaFormat == ChromaSubsampling.YUV444, allocator);
                     if (matError != SPSError.None)
                         return matError;
                 }
@@ -579,7 +550,7 @@ namespace MediaFramework.LowLevel.Codecs
             if (log2_max_frame_num_minus4 > 12)
                 return SPSError.InvalidMaxFrameNum;
 
-            MaxFrameNum = 1u << (int)(log2_max_frame_num_minus4 + 4);
+            MaxFrameNum = 1 << (int)(log2_max_frame_num_minus4 + 4);
 
             if ((rError = spsReader.TryReadUExpGolomb(out var pic_order_cnt_type)) != ReaderError.None)
                 return (SPSError)rError;
@@ -587,9 +558,9 @@ namespace MediaFramework.LowLevel.Codecs
             if (pic_order_cnt_type > 2)
                 return SPSError.InvalidPicOrderCntType;
 
-            PicOrderCnt.Type = (byte)pic_order_cnt_type;
+            POCType = (int)pic_order_cnt_type;
 
-            switch (PicOrderCnt.Type)
+            switch (POCType)
             {
                 case 0:
                     if ((rError = spsReader.TryReadUExpGolomb(out var log2_max_poc_lsb_minus4)) != ReaderError.None)
@@ -598,7 +569,7 @@ namespace MediaFramework.LowLevel.Codecs
                     if (log2_max_poc_lsb_minus4 > 12)
                         return SPSError.InvalidMaxPictureOrderCntLsb;
 
-                    PicOrderCnt.MaxLsb = 1u << (int)(log2_max_poc_lsb_minus4 + 4);
+                    MaxPOCLsb = 1 << (int)(log2_max_poc_lsb_minus4 + 4);
                     break;
                 case 1:
                     if ((rError = spsReader.TryReadBool(out var delta_always_zero)) != ReaderError.None)
@@ -609,12 +580,12 @@ namespace MediaFramework.LowLevel.Codecs
                     if ((rError = spsReader.TryReadSExpGolomb(out var offset_for_non_ref_pic)) != ReaderError.None)
                         return (SPSError)rError;
 
-                    PicOrderCnt.OffsetForNonRefPic = offset_for_non_ref_pic;
+                    OffsetForNonRefPic = offset_for_non_ref_pic;
 
                     if ((rError = spsReader.TryReadSExpGolomb(out var offset_for_top_to_bottom_field)) != ReaderError.None)
                         return (SPSError)rError;
 
-                    PicOrderCnt.OffsetForTopToBottomField = offset_for_top_to_bottom_field;
+                    OffsetForTopToBottomField = offset_for_top_to_bottom_field;
 
                     if ((rError = spsReader.TryReadUExpGolomb(out var num_ref_frames_in_pic_order_cnt_cycle)) != ReaderError.None)
                         return (SPSError)rError;
@@ -622,18 +593,17 @@ namespace MediaFramework.LowLevel.Codecs
                     if (num_ref_frames_in_pic_order_cnt_cycle > 255)
                         return SPSError.InvalidNumRefFramesInCycle;
 
-                    PicOrderCnt.NumRefFramesInCycle = (byte)num_ref_frames_in_pic_order_cnt_cycle;
+                    NumRefFramesInCycle = (byte)num_ref_frames_in_pic_order_cnt_cycle;
                     if (num_ref_frames_in_pic_order_cnt_cycle > 0)
                     {
-                        if (PicOrderCnt.OffsetRefFrame == null)
-                            PicOrderCnt.OffsetRefFrame = (int*)UnsafeUtility.Malloc(num_ref_frames_in_pic_order_cnt_cycle * sizeof(int), 4, Allocator);
+                        OffsetRefFrames = (int*)UnsafeUtility.Malloc(num_ref_frames_in_pic_order_cnt_cycle * sizeof(int), 4, Allocator);
 
                         for (int i = 0; i < num_ref_frames_in_pic_order_cnt_cycle; i++)
                         {
                             if ((rError = spsReader.TryReadSExpGolomb(out var offsetForRefFrame)) != ReaderError.None)
                                 return (SPSError)rError;
 
-                            PicOrderCnt.OffsetRefFrame[i] = offsetForRefFrame;
+                            OffsetRefFrames[i] = offsetForRefFrame;
                         }
                     }
                     break;
@@ -645,7 +615,7 @@ namespace MediaFramework.LowLevel.Codecs
             if (max_num_ref_frames > 16)
                 return SPSError.InvalidMaxNumRefFrames;
 
-            PicOrderCnt.MaxNumRefFrames = (byte)max_num_ref_frames;
+            MaxNumRefFrames = (int)max_num_ref_frames;
 
             if ((rError = spsReader.TryReadBool(out var gaps_in_frame_num_value_allowed)) != ReaderError.None)
                 return (SPSError)rError;
@@ -693,8 +663,9 @@ namespace MediaFramework.LowLevel.Codecs
 
             if (frame_cropping_present)
             {
-                var cropUnitX = Chroma.ArrayType == 0 ? 1 : Chroma.SubWidthC;
-                var cropUnitY = Chroma.ArrayType == 0 ? 1 : Chroma.SubHeightC;
+                var cropUnitX = ArrayType == 0 ? 1 : SubWidthC;
+                var cropUnitY = ArrayType == 0 ? 1 : SubHeightC;
+
                 cropUnitY *= frame_mbs_only ? 1u : 2u;
 
                 if ((rError = spsReader.TryReadUExpGolomb(out var frame_crop_left_offset)) != ReaderError.None)
@@ -818,7 +789,7 @@ namespace MediaFramework.LowLevel.Codecs
                     if (chroma_sample_loc_type_top_field > 5)
                         return SPSError.InvalidChromaLocTypeField;
 
-                    LocType.TopField = (byte)chroma_sample_loc_type_top_field;
+                    ChromaLoc.TopField = (byte)chroma_sample_loc_type_top_field;
 
                     if ((rError = spsReader.TryReadUExpGolomb(out var chroma_sample_loc_type_bottom_field)) != ReaderError.None)
                         return (SPSError)rError;
@@ -826,7 +797,7 @@ namespace MediaFramework.LowLevel.Codecs
                     if (chroma_sample_loc_type_bottom_field > 5)
                         return SPSError.InvalidChromaLocTypeField;
 
-                    LocType.BottomField = (byte)chroma_sample_loc_type_bottom_field;
+                    ChromaLoc.BottomField = (byte)chroma_sample_loc_type_bottom_field;
                 }
 
                 if ((rError = spsReader.TryReadBool(out var timing_info_present)) != ReaderError.None)
@@ -840,7 +811,7 @@ namespace MediaFramework.LowLevel.Codecs
                     if (num_units_in_tick == 0)
                         return SPSError.InvalidTimeInfo;
 
-                    Framerate.NumUnitsInTick = num_units_in_tick;
+                    NumUnitsInTick = num_units_in_tick;
 
                     if ((rError = spsReader.TryReadBits(32, out var time_scale)) != ReaderError.None)
                         return (SPSError)rError;
@@ -848,7 +819,7 @@ namespace MediaFramework.LowLevel.Codecs
                     if (time_scale == 0)
                         return SPSError.InvalidTimeInfo;
 
-                    Framerate.TimeScale = time_scale;
+                    Timescale = time_scale;
 
                     if ((rError = spsReader.TryReadBool(out var fixed_frame_rate)) != ReaderError.None)
                         return (SPSError)rError;
@@ -891,11 +862,11 @@ namespace MediaFramework.LowLevel.Codecs
             if (Allocator == Allocator.Invalid && Allocator == Allocator.None)
                 return;
 
-            if (ScalingMatrix != null)
-                UnsafeUtility.Free(ScalingMatrix, Allocator);
+            if (ScalingMatrix.m_Buffer != null)
+                UnsafeUtility.Free(ScalingMatrix.m_Buffer, Allocator);
 
-            if (PicOrderCnt.OffsetRefFrame != null)
-                UnsafeUtility.Free(PicOrderCnt.OffsetRefFrame, Allocator);
+            if (OffsetRefFrames != null)
+                UnsafeUtility.Free(OffsetRefFrames, Allocator);
         }
     }
 }

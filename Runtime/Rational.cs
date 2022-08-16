@@ -16,4 +16,15 @@ namespace MediaFramework
             Denom = denom;
         }
     }
+
+    public struct UIntRational
+    {
+        public uint Num, Denom;
+
+        public UIntRational(uint num, uint denom)
+        {
+            Num = num;
+            Denom = denom;
+        }
+    }
 }
