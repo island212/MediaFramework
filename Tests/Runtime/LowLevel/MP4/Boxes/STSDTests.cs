@@ -20,20 +20,17 @@ namespace MP4.Boxes
         {
             fixed (byte* ptr = stsdSmallVideo)
             {
-                var reader = new BByteReader(ptr, stsdSmallVideo.Length);
+                var reader = new BByteReader(ptr, stsdSmallVideo.Length, Allocator.None);
 
                 var isoBox = reader.ReadISOBox();
-                var error = STSDBox.Read(ref context, ref reader, isoBox);
+                var error = STSDBox.Read(ref context, ref reader, ref logger, isoBox);
 
-                for (int i = 0; i < context.Logger.Length; i++)
-                {
-                    UnityEngine.Debug.LogError(context.Logger.MessageAt(i));
-                }
+                PrintLog();
 
                 Assert.AreEqual(MP4Error.None, error, "Error");
-                Assert.AreEqual(0, context.Logger.Length, "Logger.Length");
+                Assert.AreEqual(0, logger.Length, "Logger.Length");
 
-                ref var track = ref context.CurrentTrack;
+                ref var track = ref context.Track;
 
                 Assert.AreEqual(0, track.STSDIndex, "STSD.Index");
                 Assert.AreEqual(0, reader.Remains, "Remains");
@@ -45,16 +42,16 @@ namespace MP4.Boxes
         {
             fixed (byte* ptr = stsdSmallVideo)
             {
-                ref var track = ref context.CurrentTrack;
+                ref var track = ref context.Track;
                 track.STSDIndex = 5;
 
-                var reader = new BByteReader(ptr, stsdSmallVideo.Length);
+                var reader = new BByteReader(ptr, stsdSmallVideo.Length, Allocator.None);
 
                 var isoBox = reader.ReadISOBox();
-                var error = STSDBox.Read(ref context, ref reader, isoBox);
+                var error = STSDBox.Read(ref context, ref reader, ref logger, isoBox);
 
                 Assert.AreEqual(MP4Error.DuplicateBox, error, "Error");
-                Assert.AreEqual(1, context.Logger.Length, "Logger.Length");
+                Assert.AreEqual(1, logger.Length, "Logger.Length");
             }
         }
 

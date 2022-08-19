@@ -30,42 +30,6 @@ namespace Unsafe
         }
 
         [Test]
-        public void Constructor_ValidBByteReader_ValidState()
-        {
-            Stream.Add(0x59);
-            Stream.Add(0xF9);
-            Stream.Add(0xC3);
-
-            var bbyteReader = new BByteReader(Stream);
-
-            var bitReader = new BBitReader(bbyteReader);
-
-            unsafe
-            {
-                Assert.IsTrue(bitReader.m_Buffer == bbyteReader.m_Head, "Buffer");
-                Assert.AreEqual(0, bitReader.Index, "Index");
-                Assert.AreEqual(24, bitReader.Length, "Length");
-                Assert.IsTrue(bitReader.IsValid, "IsValid");
-            }
-        }
-
-        [Test]
-        public void Constructor_InvalidBByteReader_InvalidState()
-        {
-            var bbyteReader = new BByteReader();
-
-            var bitReader = new BBitReader(bbyteReader);
-
-            unsafe
-            {
-                Assert.IsTrue(bitReader.m_Buffer == null, "Buffer");
-                Assert.AreEqual(0, bitReader.Index, "Index");
-                Assert.AreEqual(0, bitReader.Length, "Length");
-                Assert.IsFalse(bitReader.IsValid, "IsValid");
-            }
-        }
-
-        [Test]
         public void Constructor_ValidNativeList_ValidState()
         {
             Stream.Add(0x59);

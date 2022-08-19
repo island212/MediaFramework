@@ -14,18 +14,15 @@ namespace MP4.Boxes
         {
             fixed (byte* ptr = mvhdSmallVersion0)
             {
-                var reader = new BByteReader(ptr, mvhdSmallVersion0.Length);
+                var reader = new BByteReader(ptr, mvhdSmallVersion0.Length, Allocator.None);
 
                 var isoBox = reader.ReadISOBox();
-                var error = MVHDBox.Read(ref context, ref reader, isoBox);
+                var error = MVHDBox.Read(ref context, ref reader, ref logger, isoBox);
 
-                for (int i = 0; i < context.Logger.Length; i++)
-                {
-                    UnityEngine.Debug.LogError(context.Logger.MessageAt(i));
-                }
+                PrintLog();
 
                 Assert.AreEqual(MP4Error.None, error, "Error");
-                Assert.AreEqual(0, context.Logger.Length, "Logger.Length");
+                Assert.AreEqual(0, logger.Length, "Logger.Length");
 
                 Assert.AreEqual(90000, context.Timescale, "TimeScale");
                 Assert.AreEqual(501120, context.Duration, "Duration");
@@ -39,18 +36,15 @@ namespace MP4.Boxes
         {
             fixed (byte* ptr = mvhdSmallVersion1)
             {
-                var reader = new BByteReader(ptr, mvhdSmallVersion1.Length);
+                var reader = new BByteReader(ptr, mvhdSmallVersion1.Length, Allocator.None);
 
                 var isoBox = reader.ReadISOBox();
-                var error = MVHDBox.Read(ref context, ref reader, isoBox);
+                var error = MVHDBox.Read(ref context, ref reader, ref logger, isoBox);
 
-                for (int i = 0; i < context.Logger.Length; i++)
-                {
-                    UnityEngine.Debug.LogError(context.Logger.MessageAt(i));
-                }
+                PrintLog();
 
                 Assert.AreEqual(MP4Error.None, error, "Error");
-                Assert.AreEqual(0, context.Logger.Length, "Logger.Length");
+                Assert.AreEqual(0, logger.Length, "Logger.Length");
 
                 Assert.AreEqual(90000, context.Timescale, "TimeScale");
                 Assert.AreEqual(501120, context.Duration, "Duration");
@@ -67,13 +61,13 @@ namespace MP4.Boxes
                 context.Duration = 60;
                 context.Timescale = 1;
 
-                var reader = new BByteReader(ptr, mvhdSmallVersion0.Length);
+                var reader = new BByteReader(ptr, mvhdSmallVersion0.Length, Allocator.None);
 
                 var isoBox = reader.ReadISOBox();
-                var error = MVHDBox.Read(ref context, ref reader, isoBox);
+                var error = MVHDBox.Read(ref context, ref reader, ref logger, isoBox);
 
                 Assert.AreEqual(MP4Error.DuplicateBox, error, "Error");
-                Assert.AreEqual(1, context.Logger.Length, "Logger.Length");
+                Assert.AreEqual(1, logger.Length, "Logger.Length");
             }
         }
 
@@ -82,15 +76,15 @@ namespace MP4.Boxes
         {
             fixed (byte* ptr = mvhdSmallVersion0)
             {
-                var reader = new BByteReader(ptr, mvhdSmallVersion0.Length);
+                var reader = new BByteReader(ptr, mvhdSmallVersion0.Length, Allocator.None);
 
                 var isoBox = reader.ReadISOBox();
                 isoBox.size = 0;
 
-                var error = MVHDBox.Read(ref context, ref reader, isoBox);
+                var error = MVHDBox.Read(ref context, ref reader, ref logger, isoBox);
 
                 Assert.AreEqual(MP4Error.InvalidBoxSize, error, "Error");
-                Assert.AreEqual(1, context.Logger.Length, "Logger.Length");
+                Assert.AreEqual(1, logger.Length, "Logger.Length");
             }
         }
 
@@ -99,15 +93,15 @@ namespace MP4.Boxes
         {
             fixed (byte* ptr = mvhdSmallVersion0)
             {
-                var reader = new BByteReader(ptr, mvhdSmallVersion0.Length);
+                var reader = new BByteReader(ptr, mvhdSmallVersion0.Length, Allocator.None);
 
                 var isoBox = reader.ReadISOBox();
                 isoBox.size = MVHDBox.Version0 + 2;
 
-                var error = MVHDBox.Read(ref context, ref reader, isoBox);
+                var error = MVHDBox.Read(ref context, ref reader, ref logger, isoBox);
 
                 Assert.AreEqual(MP4Error.InvalidBoxSize, error, "Error");
-                Assert.AreEqual(1, context.Logger.Length, "Logger.Length");
+                Assert.AreEqual(1, logger.Length, "Logger.Length");
             }
         }
 
@@ -116,15 +110,15 @@ namespace MP4.Boxes
         {
             fixed (byte* ptr = mvhdSmallVersion1)
             {
-                var reader = new BByteReader(ptr, mvhdSmallVersion1.Length);
+                var reader = new BByteReader(ptr, mvhdSmallVersion1.Length, Allocator.None);
 
                 var isoBox = reader.ReadISOBox();
                 isoBox.size = MVHDBox.Version1 + 2;
 
-                var error = MVHDBox.Read(ref context, ref reader, isoBox);
+                var error = MVHDBox.Read(ref context, ref reader, ref logger, isoBox);
 
                 Assert.AreEqual(MP4Error.InvalidBoxSize, error, "Error");
-                Assert.AreEqual(1, context.Logger.Length, "Logger.Length");
+                Assert.AreEqual(1, logger.Length, "Logger.Length");
             }
         }
 
@@ -137,13 +131,13 @@ namespace MP4.Boxes
 
             ptr[8] = 3; // Change the version to 3
 
-            var reader = new BByteReader(ptr, mvhdSmallVersion0.Length);
+            var reader = new BByteReader(ptr, mvhdSmallVersion0.Length, Allocator.None);
 
             var isoBox = reader.ReadISOBox();
-            var error = MVHDBox.Read(ref context, ref reader, isoBox);
+            var error = MVHDBox.Read(ref context, ref reader, ref logger, isoBox);
 
             Assert.AreEqual(MP4Error.InvalidBoxVersion, error, "Error");
-            Assert.AreEqual(1, context.Logger.Length, "Logger.Length");
+            Assert.AreEqual(1, logger.Length, "Logger.Length");
         }
 
         readonly byte[] mvhdSmallVersion0 = {

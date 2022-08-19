@@ -16,6 +16,8 @@ namespace MP4
 {
     public class MP4BlobJobTests
     {
+        NativeReference<FileBlock> MDAT;
+        NativeReference<BByteReader> Reader;
         NativeReference<JobLogger> Logger;
         NativeReference<BlobAssetReference<MP4Header>> Header;
 
@@ -24,7 +26,10 @@ namespace MP4
         {
             Logger = new NativeReference<JobLogger>(Allocator.TempJob);
             Header = new NativeReference<BlobAssetReference<MP4Header>>(Allocator.TempJob);
+            Reader = new NativeReference<BByteReader>(Allocator.TempJob);
+            MDAT = new NativeReference<FileBlock>(Allocator.TempJob);
 
+            MDAT.Value = FileBlock.Invalid;
             Logger.Value = new JobLogger(16, Allocator.TempJob);
         }
 
@@ -34,29 +39,52 @@ namespace MP4
             Logger.Value.Dispose();
             Logger.Dispose();
 
+            MDAT.Dispose();
+
+            Reader.Value.Dispose();
+            Reader.Dispose();
+
             Header.Value.Dispose();
             Header.Dispose();
         }
 
+        protected void PrintLog()
+        {
+            foreach (var log in Logger.Value)
+            {
+                switch (log.type)
+                {
+                    case JobLogType.Log:
+                        UnityEngine.Debug.Log(log.message);
+                        break;
+                    case JobLogType.Warning:
+                        UnityEngine.Debug.LogWarning(log.message);
+                        break;
+                    case JobLogType.Error:
+                        UnityEngine.Debug.LogError(log.message);
+                        break;
+                }
+            }
+        }
 
         [Test]
         public unsafe void Read_Valid2Track_AllValueAreEqual()
         {
             fixed (byte* ptr = BoxTestCore.MOOVBuffer)
             {
+                Reader.Value = new BByteReader(ptr, BoxTestCore.MOOVBuffer.Length, Allocator.None);
+
                 new MP4BlobJob {
-                    Reader = new BByteReader(ptr, BoxTestCore.MOOVBuffer.Length),
+                    Reader = Reader,
                     Logger = Logger,
-                    Header = Header
+                    Header = Header,
+                    MDAT = MDAT
                 }.Run();
 
                 ref var logger = ref Logger.AsRef();
-                for (int i = 0; i < logger.Length; i++)
-                {
-                    UnityEngine.Debug.LogError(logger.MessageAt(i));
-                }
-
                 ref var header = ref Header.AsRef();
+
+                PrintLog();
 
                 Assert.AreEqual(0, logger.Length, "Logger.Length");
 

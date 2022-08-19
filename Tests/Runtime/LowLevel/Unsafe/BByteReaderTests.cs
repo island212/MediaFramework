@@ -4,6 +4,7 @@ using Unity.Collections;
 using Unity.Collections.LowLevel.Unsafe;
 
 using MediaFramework.LowLevel.Unsafe;
+using System.IO;
 
 namespace Unsafe
 {
@@ -38,7 +39,7 @@ namespace Unsafe
             Stream.Add(0xF9);
             Stream.Add(0xC3);
 
-            var byteReader = new BByteReader(Stream);
+            var byteReader = new BByteReader(Stream, Allocator.None);
 
             unsafe
             {
@@ -50,45 +51,11 @@ namespace Unsafe
         }
 
         [Test]
-        public void Constructor_ValidPtrAndLength_ValidState()
-        {
-            Stream.Add(0x59);
-            Stream.Add(0xF9);
-            Stream.Add(0xC3);
-
-            unsafe
-            {
-                var ptr = (byte*)Stream.GetUnsafeReadOnlyPtr();
-
-                var byteReader = new BByteReader(ptr, Stream.Length);
-
-                Assert.IsTrue(byteReader.m_Buffer == ptr, "Buffer");
-                Assert.AreEqual(0, byteReader.Index, "Index");
-                Assert.AreEqual(3, byteReader.Length, "Length");
-                Assert.IsTrue(byteReader.IsValid, "IsValid");
-            }
-        }
-
-        [Test]
-        public void Constructor_InvalidPtrAndLength_InvalidState()
-        {
-            unsafe
-            {
-                var byteReader = new BByteReader(null, -1);
-
-                Assert.IsTrue(byteReader.m_Buffer == null, "Buffer");
-                Assert.AreEqual(0, byteReader.Index, "Index");
-                Assert.AreEqual(-1, byteReader.Length, "Length");
-                Assert.IsFalse(byteReader.IsValid, "IsValid");
-            }
-        }
-
-        [Test]
         public void ReadUInt8_SinglePositive_ReadCorrectValue()
         {
             Stream.Add(0x59);
 
-            var byteReader = new BByteReader(Stream);
+            var byteReader = new BByteReader(Stream, Allocator.None);
 
             Assert.AreEqual(0x59u, byteReader.ReadUInt8());
         }
@@ -98,7 +65,7 @@ namespace Unsafe
         {
             Stream.Add(0xD9);
 
-            var byteReader = new BByteReader(Stream);
+            var byteReader = new BByteReader(Stream, Allocator.None);
 
             Assert.AreEqual(0xD9u, byteReader.ReadUInt8());
         }
@@ -107,10 +74,9 @@ namespace Unsafe
         public void ReadUInt8_OneMissingByte_ThrowException()
         {
 #if !ENABLE_UNITY_COLLECTIONS_CHECKS
-        Assert.Ignore();
+                Assert.Ignore();
 #endif
-
-            var byteReader = new BByteReader(Stream);
+            var byteReader = new BByteReader(Stream, Allocator.None);
 
             Assert.Throws<ArgumentOutOfRangeException>(() => byteReader.ReadUInt8());
         }
@@ -120,7 +86,7 @@ namespace Unsafe
         {
             Stream.Add(0x59);
 
-            var byteReader = new BByteReader(Stream);
+            var byteReader = new BByteReader(Stream, Allocator.None);
 
             Assert.AreEqual(0x59, byteReader.ReadInt8());
         }
@@ -130,7 +96,7 @@ namespace Unsafe
         {
             Stream.Add(0xD9);
 
-            var byteReader = new BByteReader(Stream);
+            var byteReader = new BByteReader(Stream, Allocator.None);
 
             Assert.AreEqual(0xD9 - (1 << 8), byteReader.ReadInt8());
         }
@@ -139,10 +105,9 @@ namespace Unsafe
         public void ReadInt8_OneMissingByte_ThrowException()
         {
 #if !ENABLE_UNITY_COLLECTIONS_CHECKS
-        Assert.Ignore();
+            Assert.Ignore();
 #endif
-
-            var byteReader = new BByteReader(Stream);
+            var byteReader = new BByteReader(Stream, Allocator.None);
 
             Assert.Throws<ArgumentOutOfRangeException>(() => byteReader.ReadInt8());
         }
@@ -153,7 +118,7 @@ namespace Unsafe
             Stream.Add(0x6E);
             Stream.Add(0xD9);
 
-            var byteReader = new BByteReader(Stream);
+            var byteReader = new BByteReader(Stream, Allocator.None);
 
             Assert.AreEqual(0x6ED9u, byteReader.ReadUInt16());
         }
@@ -164,7 +129,7 @@ namespace Unsafe
             Stream.Add(0xEE);
             Stream.Add(0xD9);
 
-            var byteReader = new BByteReader(Stream);
+            var byteReader = new BByteReader(Stream, Allocator.None);
 
             Assert.AreEqual(0xEED9u, byteReader.ReadUInt16());
         }
@@ -173,12 +138,12 @@ namespace Unsafe
         public void ReadUInt16_OneMissingByte_ThrowException()
         {
 #if !ENABLE_UNITY_COLLECTIONS_CHECKS
-        Assert.Ignore();
+            Assert.Ignore();
 #endif
 
             Stream.Add(0xD9);
 
-            var byteReader = new BByteReader(Stream);
+            var byteReader = new BByteReader(Stream, Allocator.None);
 
             Assert.Throws<ArgumentOutOfRangeException>(() => byteReader.ReadUInt16());
         }
@@ -189,7 +154,7 @@ namespace Unsafe
             Stream.Add(0x6E);
             Stream.Add(0xD9);
 
-            var byteReader = new BByteReader(Stream);
+            var byteReader = new BByteReader(Stream, Allocator.None);
 
             Assert.AreEqual(0x6ED9, byteReader.ReadInt16());
         }
@@ -200,7 +165,7 @@ namespace Unsafe
             Stream.Add(0xEE);
             Stream.Add(0xD9);
 
-            var byteReader = new BByteReader(Stream);
+            var byteReader = new BByteReader(Stream, Allocator.None);
 
             Assert.AreEqual(0xEED9 - (1 << 16), byteReader.ReadInt16());
         }
@@ -209,12 +174,12 @@ namespace Unsafe
         public void ReadInt16_OneMissingByte_ThrowException()
         {
 #if !ENABLE_UNITY_COLLECTIONS_CHECKS
-        Assert.Ignore();
+            Assert.Ignore();
 #endif
 
             Stream.Add(0xD9);
 
-            var byteReader = new BByteReader(Stream);
+            var byteReader = new BByteReader(Stream, Allocator.None);
 
             Assert.Throws<ArgumentOutOfRangeException>(() => byteReader.ReadInt16());
         }
@@ -226,7 +191,7 @@ namespace Unsafe
             Stream.Add(0xD9);
             Stream.Add(0xDB);
 
-            var byteReader = new BByteReader(Stream);
+            var byteReader = new BByteReader(Stream, Allocator.None);
 
             Assert.AreEqual(0x6ED9DBu, byteReader.ReadUInt24());
         }
@@ -238,7 +203,7 @@ namespace Unsafe
             Stream.Add(0xD9);
             Stream.Add(0xDB);
 
-            var byteReader = new BByteReader(Stream);
+            var byteReader = new BByteReader(Stream, Allocator.None);
 
             Assert.AreEqual(0xEED9DBu, byteReader.ReadUInt24());
         }
@@ -247,13 +212,13 @@ namespace Unsafe
         public void ReadUInt24_OneMissingByte_ThrowException()
         {
 #if !ENABLE_UNITY_COLLECTIONS_CHECKS
-        Assert.Ignore();
+            Assert.Ignore();
 #endif
 
             Stream.Add(0xD9);
             Stream.Add(0xDB);
 
-            var byteReader = new BByteReader(Stream);
+            var byteReader = new BByteReader(Stream, Allocator.None);
 
             Assert.Throws<ArgumentOutOfRangeException>(() => byteReader.ReadUInt24());
         }
@@ -265,7 +230,7 @@ namespace Unsafe
             Stream.Add(0xD9);
             Stream.Add(0xDB);
 
-            var byteReader = new BByteReader(Stream);
+            var byteReader = new BByteReader(Stream, Allocator.None);
 
             Assert.AreEqual(0x6ED9DB, byteReader.ReadInt24());
         }
@@ -277,7 +242,7 @@ namespace Unsafe
             Stream.Add(0xD9);
             Stream.Add(0xDB);
 
-            var byteReader = new BByteReader(Stream);
+            var byteReader = new BByteReader(Stream, Allocator.None);
 
             Assert.AreEqual(0xEED9DB, byteReader.ReadInt24());
         }
@@ -286,13 +251,13 @@ namespace Unsafe
         public void ReadInt24_OneMissingByte_ThrowException()
         {
 #if !ENABLE_UNITY_COLLECTIONS_CHECKS
-        Assert.Ignore();
+            Assert.Ignore();
 #endif
 
             Stream.Add(0xD9);
             Stream.Add(0xDB);
 
-            var byteReader = new BByteReader(Stream);
+            var byteReader = new BByteReader(Stream, Allocator.None);
 
             Assert.Throws<ArgumentOutOfRangeException>(() => byteReader.ReadInt24());
         }
@@ -305,7 +270,7 @@ namespace Unsafe
             Stream.Add(0xDB);
             Stream.Add(0x58);
 
-            var byteReader = new BByteReader(Stream);
+            var byteReader = new BByteReader(Stream, Allocator.None);
 
             Assert.AreEqual(0x6ED9DB58u, byteReader.ReadUInt32());
         }
@@ -318,7 +283,7 @@ namespace Unsafe
             Stream.Add(0xDB);
             Stream.Add(0x58);
 
-            var byteReader = new BByteReader(Stream);
+            var byteReader = new BByteReader(Stream, Allocator.None);
 
             Assert.AreEqual(0xEED9DB58u, byteReader.ReadUInt32());
         }
@@ -327,13 +292,13 @@ namespace Unsafe
         public void ReadUInt32_OneMissingByte_ThrowException()
         {
 #if !ENABLE_UNITY_COLLECTIONS_CHECKS
-        Assert.Ignore();
+            Assert.Ignore();
 #endif
             Stream.Add(0xD9);
             Stream.Add(0xDB);
             Stream.Add(0x58);
 
-            var byteReader = new BByteReader(Stream);
+            var byteReader = new BByteReader(Stream, Allocator.None);
 
             Assert.Throws<ArgumentOutOfRangeException>(() => byteReader.ReadUInt32());
         }
@@ -346,7 +311,7 @@ namespace Unsafe
             Stream.Add(0xDB);
             Stream.Add(0x58);
 
-            var byteReader = new BByteReader(Stream);
+            var byteReader = new BByteReader(Stream, Allocator.None);
 
             Assert.AreEqual(0x6ED9DB58, byteReader.ReadInt32());
         }
@@ -359,7 +324,7 @@ namespace Unsafe
             Stream.Add(0xDB);
             Stream.Add(0x58);
 
-            var byteReader = new BByteReader(Stream);
+            var byteReader = new BByteReader(Stream, Allocator.None);
 
             Assert.AreEqual(-~0xEED9DB58 - 1, byteReader.ReadInt32());
         }
@@ -368,14 +333,14 @@ namespace Unsafe
         public void ReadInt32_OneMissingByte_ThrowException()
         {
 #if !ENABLE_UNITY_COLLECTIONS_CHECKS
-        Assert.Ignore();
+            Assert.Ignore();
 #endif
 
             Stream.Add(0xD9);
             Stream.Add(0xDB);
             Stream.Add(0x58);
 
-            var byteReader = new BByteReader(Stream);
+            var byteReader = new BByteReader(Stream, Allocator.None);
 
             Assert.Throws<ArgumentOutOfRangeException>(() => byteReader.ReadInt32());
         }
@@ -393,7 +358,7 @@ namespace Unsafe
             Stream.Add(0xBD);
             Stream.Add(0x85);
 
-            var byteReader = new BByteReader(Stream);
+            var byteReader = new BByteReader(Stream, Allocator.None);
 
             Assert.AreEqual(0x6ED9DB58E69DBD85UL, byteReader.ReadUInt64());
         }
@@ -410,7 +375,7 @@ namespace Unsafe
             Stream.Add(0xBD);
             Stream.Add(0x85);
 
-            var byteReader = new BByteReader(Stream);
+            var byteReader = new BByteReader(Stream, Allocator.None);
 
             Assert.AreEqual(0xEED9DB58E69DBD85UL, byteReader.ReadUInt64());
         }
@@ -419,7 +384,7 @@ namespace Unsafe
         public void ReadUInt64_OneMissingByte_ThrowException()
         {
 #if !ENABLE_UNITY_COLLECTIONS_CHECKS
-        Assert.Ignore();
+            Assert.Ignore();
 #endif
 
             Stream.Add(0xD9);
@@ -430,7 +395,7 @@ namespace Unsafe
             Stream.Add(0xBD);
             Stream.Add(0x85);
 
-            var byteReader = new BByteReader(Stream);
+            var byteReader = new BByteReader(Stream, Allocator.None);
 
             Assert.Throws<ArgumentOutOfRangeException>(() => byteReader.ReadUInt64());
         }
@@ -447,7 +412,7 @@ namespace Unsafe
             Stream.Add(0xBD);
             Stream.Add(0x85);
 
-            var byteReader = new BByteReader(Stream);
+            var byteReader = new BByteReader(Stream, Allocator.None);
 
             Assert.AreEqual(0x6ED9DB58E69DBD85L, byteReader.ReadInt64());
         }
@@ -464,7 +429,7 @@ namespace Unsafe
             Stream.Add(0xBD);
             Stream.Add(0x85);
 
-            var byteReader = new BByteReader(Stream);
+            var byteReader = new BByteReader(Stream, Allocator.None);
 
             Assert.AreEqual(unchecked((long)0xEED9DB58E69DBD85L), byteReader.ReadInt64());
         }
@@ -473,7 +438,7 @@ namespace Unsafe
         public void ReadInt64_OneMissingByte_ThrowException()
         {
 #if !ENABLE_UNITY_COLLECTIONS_CHECKS
-        Assert.Ignore();
+            Assert.Ignore();
 #endif
 
             Stream.Add(0xD9);
@@ -484,7 +449,7 @@ namespace Unsafe
             Stream.Add(0xBD);
             Stream.Add(0x85);
 
-            var byteReader = new BByteReader(Stream);
+            var byteReader = new BByteReader(Stream, Allocator.None);
 
             Assert.Throws<ArgumentOutOfRangeException>(() => byteReader.ReadInt64());
         }
@@ -493,7 +458,7 @@ namespace Unsafe
         public void Index_NegativeIndex_ThrowException()
         {
 #if !ENABLE_UNITY_COLLECTIONS_CHECKS
-        Assert.Ignore();
+            Assert.Ignore();
 #endif
 
             Stream.Add(0xD9);
@@ -501,7 +466,7 @@ namespace Unsafe
             Stream.Add(0x58);
             Stream.Add(0xE6);
 
-            var byteReader = new BByteReader(Stream);
+            var byteReader = new BByteReader(Stream, Allocator.None);
 
             Assert.Throws<ArgumentOutOfRangeException>(() => { byteReader.Index = -1; });
         }
@@ -510,7 +475,7 @@ namespace Unsafe
         public void Index_OneByteOverflow_ThrowException()
         {
 #if !ENABLE_UNITY_COLLECTIONS_CHECKS
-        Assert.Ignore();
+            Assert.Ignore();
 #endif
 
             Stream.Add(0xD9);
@@ -518,7 +483,7 @@ namespace Unsafe
             Stream.Add(0x58);
             Stream.Add(0xE6);
 
-            var byteReader = new BByteReader(Stream);
+            var byteReader = new BByteReader(Stream, Allocator.None);
 
             Assert.Throws<ArgumentOutOfRangeException>(() => { byteReader.Index = 5; });
         }
@@ -531,7 +496,7 @@ namespace Unsafe
             Stream.Add(0x58);
             Stream.Add(0xE6);
 
-            var byteReader = new BByteReader(Stream);
+            var byteReader = new BByteReader(Stream, Allocator.None);
 
             Assert.AreEqual(0xD9DB58E6u, byteReader.ReadUInt32());
             Assert.AreEqual(4, byteReader.Index);
@@ -550,7 +515,7 @@ namespace Unsafe
             Stream.Add(0x58);
             Stream.Add(0xE6);
 
-            var byteReader = new BByteReader(Stream);
+            var byteReader = new BByteReader(Stream, Allocator.None);
 
             byteReader.Index = 2;
 
@@ -562,7 +527,7 @@ namespace Unsafe
         public void Index_JumpToEnd_ExpectNoException()
         {
 #if !ENABLE_UNITY_COLLECTIONS_CHECKS
-        Assert.Ignore();
+            Assert.Ignore();
 #endif
 
             Stream.Add(0xD9);
@@ -570,7 +535,7 @@ namespace Unsafe
             Stream.Add(0x58);
             Stream.Add(0xE6);
 
-            var byteReader = new BByteReader(Stream);
+            var byteReader = new BByteReader(Stream, Allocator.None);
 
             byteReader.Index = 4;
         }
@@ -579,7 +544,7 @@ namespace Unsafe
         public void Index_JumpToEndReadOneByte_ExpectException()
         {
 #if !ENABLE_UNITY_COLLECTIONS_CHECKS
-        Assert.Ignore();
+            Assert.Ignore();
 #endif
 
             Stream.Add(0xD9);
@@ -587,7 +552,7 @@ namespace Unsafe
             Stream.Add(0x58);
             Stream.Add(0xE6);
 
-            var byteReader = new BByteReader(Stream);
+            var byteReader = new BByteReader(Stream, Allocator.None);
 
             byteReader.Index = 4;
 
@@ -604,7 +569,7 @@ namespace Unsafe
             Stream.Add(0x58);
             Stream.Add(0xE6);
 
-            var byteReader = new BByteReader(Stream);
+            var byteReader = new BByteReader(Stream, Allocator.None);
 
             byteReader.Seek(-1);
 
@@ -619,7 +584,7 @@ namespace Unsafe
             Stream.Add(0x58);
             Stream.Add(0xE6);
 
-            var byteReader = new BByteReader(Stream);
+            var byteReader = new BByteReader(Stream, Allocator.None);
 
             byteReader.Seek(5);
 
@@ -634,7 +599,7 @@ namespace Unsafe
             Stream.Add(0x58);
             Stream.Add(0xE6);
 
-            var byteReader = new BByteReader(Stream);
+            var byteReader = new BByteReader(Stream, Allocator.None);
 
             byteReader.ReadUInt32();
 
@@ -653,7 +618,7 @@ namespace Unsafe
             Stream.Add(0x58);
             Stream.Add(0xE6);
 
-            var byteReader = new BByteReader(Stream);
+            var byteReader = new BByteReader(Stream, Allocator.None);
 
             byteReader.Seek(2);
 
@@ -664,7 +629,7 @@ namespace Unsafe
         public void Seek_JumpToEnd_ExpectNoException()
         {
 #if !ENABLE_UNITY_COLLECTIONS_CHECKS
-        Assert.Ignore();
+            Assert.Ignore();
 #endif
 
             Stream.Add(0xD9);
@@ -672,7 +637,7 @@ namespace Unsafe
             Stream.Add(0x58);
             Stream.Add(0xE6);
 
-            var byteReader = new BByteReader(Stream);
+            var byteReader = new BByteReader(Stream, Allocator.None);
 
             byteReader.Seek(4);
 
@@ -683,7 +648,7 @@ namespace Unsafe
         public void Seek_JumpToEndReadOneByte_ExpectException()
         {
 #if !ENABLE_UNITY_COLLECTIONS_CHECKS
-        Assert.Ignore();
+            Assert.Ignore();
 #endif
 
             Stream.Add(0xD9);
@@ -691,7 +656,7 @@ namespace Unsafe
             Stream.Add(0x58);
             Stream.Add(0xE6);
 
-            var byteReader = new BByteReader(Stream);
+            var byteReader = new BByteReader(Stream, Allocator.None);
 
             byteReader.Seek(4);
 

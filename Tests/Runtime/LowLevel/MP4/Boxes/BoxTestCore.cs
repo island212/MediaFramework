@@ -10,40 +10,59 @@ namespace MP4.Boxes
 {
     public class BoxTestCore
     {
-        protected MP4JobContext context;
+        protected MP4Context context;
+        protected JobLogger logger;
 
         [OneTimeSetUp]
         protected virtual void OneTimeSetUp()
         {
-            context = new MP4JobContext();
-            context.Logger = new JobLogger(16, Allocator.Temp);
-            context.Tracks = new UnsafeList<MP4JobTrackContext>(1, Allocator.Temp);
+            context = new MP4Context();
+            context.TrackList = new UnsafeList<MP4TrackContext>(1, Allocator.Temp);
+
+            logger = new JobLogger(16, Allocator.Temp);
         }
 
         [OneTimeTearDown]
         protected virtual void OneTimeTearDown()
         {
-            context.Logger.Dispose();
-            context.Tracks.Dispose();
+            logger.Dispose();
+            context.TrackList.Dispose();
         }
 
         [SetUp]
         protected virtual void SetUp()
         {
-            context.Tracks.Add(new MP4JobTrackContext());
+            context.TrackList.Add(new MP4TrackContext());
         }
 
         [TearDown]
         protected virtual void TearDown()
         {
-            context.Logger.Clear();
-            context.Tracks.Clear();
+            logger.Clear();
+            context.TrackList.Clear();
 
-            var newContext = new MP4JobContext();
-            newContext.Logger = context.Logger;
-            newContext.Tracks = context.Tracks;
-
+            var newContext = new MP4Context();
+            newContext.TrackList = context.TrackList;
             context = newContext;
+        }
+
+        protected void PrintLog()
+        {
+            foreach (var log in logger)
+            {
+                switch (log.type)
+                {
+                    case JobLogType.Log:
+                        UnityEngine.Debug.Log(log.message);
+                        break;
+                    case JobLogType.Warning:
+                        UnityEngine.Debug.LogWarning(log.message);
+                        break;
+                    case JobLogType.Error:
+                        UnityEngine.Debug.LogError(log.message);
+                        break;
+                }
+            }
         }
 
         public readonly static int MOOVIndex = 380040;

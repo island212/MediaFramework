@@ -22,19 +22,16 @@ namespace MP4.Boxes
         {
             fixed (byte* ptr = MOOVBuffer)
             {
-                var reader = new BByteReader(ptr, MOOVBuffer.Length);
+                var reader = new BByteReader(ptr, MOOVBuffer.Length, Allocator.None);
 
                 var moovBox = reader.ReadISOBox();
 
-               var error = ISOBMFF.Read(ref context, ref reader, moovBox);
+               var error = ISOBMFF.Read(ref context, ref reader, ref logger, moovBox);
 
-                for (int i = 0; i < context.Logger.Length; i++)
-                {
-                    UnityEngine.Debug.LogError(context.Logger.MessageAt(i));
-                }
+                PrintLog();
 
                 Assert.AreEqual(MP4Error.None, error, "Error");
-                Assert.AreEqual(0, context.Logger.Length, "Logger.Length");
+                Assert.AreEqual(0, logger.Length, "Logger.Length");
 
                 //MVHD
                 Assert.AreEqual(501120, context.Duration, "MVHD.Duration");
@@ -42,9 +39,9 @@ namespace MP4.Boxes
                 Assert.AreEqual(3, context.NextTrackID, "MVHD.NextTrackID");
 
                 //TRAK
-                Assert.AreEqual(2, context.Tracks.Length, "Tracks.Length");
+                Assert.AreEqual(2, context.TrackList.Length, "Tracks.Length");
 
-                ref var track1 = ref context.Tracks.ElementAt(0);
+                ref var track1 = ref context.TrackList.ElementAt(0);
 
                 Assert.AreEqual(ISOHandler.VIDE, track1.Handler, "track1.Handler"); 
                 Assert.AreEqual(1, track1.TrackID, "track1.TKHD.TrackID");     
@@ -59,7 +56,7 @@ namespace MP4.Boxes
                 Assert.AreEqual(42, track1.STCO.EntryCount, "track1.STCO.EntryCount");
                 Assert.AreEqual(1320, track1.STCO.SampleIndex, "track1.STCO.SampleIndex");
 
-                ref var track2 = ref context.Tracks.ElementAt(1);
+                ref var track2 = ref context.TrackList.ElementAt(1);
 
                 Assert.AreEqual(ISOHandler.SOUN, track2.Handler, "track2.Handler");
                 Assert.AreEqual(2, track2.TrackID, "track2.TKHD.TrackID");

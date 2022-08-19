@@ -35,7 +35,7 @@ namespace Codecs
             fixed (byte* ptr = spsSmall)
                 UnsafeUtility.MemCpy(spsDataPtr, ptr, spsSmall.Length);
 
-            var reader = new BByteReader(spsDataPtr, spsSmall.Length);
+            var reader = new BByteReader(spsDataPtr, spsSmall.Length, Allocator.None);
 
             using var sps = new SPSNalu();
             var error = sps.Parse(reader, Allocator.Temp);

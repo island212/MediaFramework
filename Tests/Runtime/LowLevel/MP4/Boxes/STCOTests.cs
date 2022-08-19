@@ -1,6 +1,7 @@
 ﻿using MediaFramework.LowLevel.MP4;
 using MediaFramework.LowLevel.Unsafe;
 using NUnit.Framework;
+using Unity.Collections;
 using UnityEngine.TestTools;
 
 namespace MP4.Boxes
@@ -12,20 +13,17 @@ namespace MP4.Boxes
         {
             fixed (byte* ptr = stcoSmallVideo)
             {
-                var reader = new BByteReader(ptr, stcoSmallVideo.Length);
+                var reader = new BByteReader(ptr, stcoSmallVideo.Length, Allocator.None);
 
                 var isoBox = reader.ReadISOBox();
-                var error = STCOBox.Read(ref context, ref reader, isoBox);
+                var error = STCOBox.Read(ref context, ref reader, ref logger, isoBox);
 
-                for (int i = 0; i < context.Logger.Length; i++)
-                {
-                    UnityEngine.Debug.LogError(context.Logger.MessageAt(i));
-                }
+                PrintLog();
 
                 Assert.AreEqual(MP4Error.None, error, "Error");
-                Assert.AreEqual(0, context.Logger.Length, "Logger.Length");
+                Assert.AreEqual(0, logger.Length, "Logger.Length");
 
-                ref var track = ref context.CurrentTrack;
+                ref var track = ref context.Track;
 
                 Assert.AreEqual(42, track.STCO.EntryCount, "EntryCount");
                 Assert.AreEqual(16, track.STCO.SampleIndex, "SampleIndex");
@@ -38,16 +36,16 @@ namespace MP4.Boxes
         {
             fixed (byte* ptr = stcoSmallVideo)
             {
-                ref var track = ref context.CurrentTrack;
+                ref var track = ref context.Track;
                 track.STCO.EntryCount = 1;
 
-                var reader = new BByteReader(ptr, stcoSmallVideo.Length);
+                var reader = new BByteReader(ptr, stcoSmallVideo.Length, Allocator.None);
 
                 var isoBox = reader.ReadISOBox();
-                var error = STCOBox.Read(ref context, ref reader, isoBox);
+                var error = STCOBox.Read(ref context, ref reader, ref logger, isoBox);
 
                 Assert.AreEqual(MP4Error.DuplicateBox, error, "Error");
-                Assert.AreEqual(1, context.Logger.Length, "Logger.Length");
+                Assert.AreEqual(1, logger.Length, "Logger.Length");
             }
         }
 
@@ -56,17 +54,17 @@ namespace MP4.Boxes
         {
             fixed (byte* ptr = stcoSmallVideo)
             {
-                ref var track = ref context.CurrentTrack;
+                ref var track = ref context.Track;
 
-                var reader = new BByteReader(ptr, stcoSmallVideo.Length);
+                var reader = new BByteReader(ptr, stcoSmallVideo.Length, Allocator.None);
 
                 var isoBox = reader.ReadISOBox();
                 isoBox.size = 0;
 
-                var error = STCOBox.Read(ref context, ref reader, isoBox);
+                var error = STCOBox.Read(ref context, ref reader, ref logger, isoBox);
 
                 Assert.AreEqual(MP4Error.InvalidBoxSize, error, "Error");
-                Assert.AreEqual(1, context.Logger.Length, "Logger.Length");
+                Assert.AreEqual(1, logger.Length, "Logger.Length");
             }
         }
 
@@ -75,17 +73,17 @@ namespace MP4.Boxes
         {
             fixed (byte* ptr = stcoSmallVideo)
             {
-                ref var track = ref context.CurrentTrack;
+                ref var track = ref context.Track;
 
-                var reader = new BByteReader(ptr, stcoSmallVideo.Length);
+                var reader = new BByteReader(ptr, stcoSmallVideo.Length, Allocator.None);
 
                 var isoBox = reader.ReadISOBox();
                 isoBox.size += STCOBox.SampleSize;
 
-                var error = STCOBox.Read(ref context, ref reader, isoBox);
+                var error = STCOBox.Read(ref context, ref reader, ref logger, isoBox);
 
                 Assert.AreEqual(MP4Error.InvalidEntryCount, error, "Error");
-                Assert.AreEqual(1, context.Logger.Length, "Logger.Length");
+                Assert.AreEqual(1, logger.Length, "Logger.Length");
             }
         }
 
@@ -94,17 +92,17 @@ namespace MP4.Boxes
         {
             fixed (byte* ptr = stcoSmallVideo)
             {
-                ref var track = ref context.CurrentTrack;
+                ref var track = ref context.Track;
 
-                var reader = new BByteReader(ptr, stcoSmallVideo.Length);
+                var reader = new BByteReader(ptr, stcoSmallVideo.Length, Allocator.None);
 
                 var isoBox = reader.ReadISOBox();
                 isoBox.size = STCOBox.MinSize + 1;
 
-                var error = STCOBox.Read(ref context, ref reader, isoBox);
+                var error = STCOBox.Read(ref context, ref reader, ref logger, isoBox);
 
                 Assert.AreEqual(MP4Error.InvalidBoxSize, error, "Error");
-                Assert.AreEqual(1, context.Logger.Length, "Logger.Length");
+                Assert.AreEqual(1, logger.Length, "Logger.Length");
             }
         }
 

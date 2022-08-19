@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
@@ -10,85 +11,80 @@ using UnityEngine;
 
 namespace MediaFramework.LowLevel
 {
+    public enum JobLogType
+    { 
+        Log,
+        Warning,
+        Error
+    }
+
     public struct JobLog
     {
-        public LogType Type;
-        public int MetaData1;
-        public int MetaData2;
-        public int MetaData3;
+        public int tag;
+        public JobLogType type;
+        public FixedString128Bytes message;
     }
 
     [BurstCompatible]
-    public unsafe struct JobLogger : IDisposable
+    public unsafe struct JobLogger : IDisposable, IEnumerable<JobLog>
     {
-        public readonly Allocator Allocator;
+        public int Errors { get; private set; }
 
-        UnsafeList<JobLog> m_JobLogs;
+        UnsafeList<int> m_Tags;
+        UnsafeList<JobLogType> m_JobLogs;
         UnsafeList<FixedString128Bytes> m_JobLogMessages;
 
-        public bool IsCreated => m_JobLogs.IsCreated;
+        public bool IsCreated => m_JobLogs.IsCreated && m_JobLogMessages.IsCreated;
 
         public int Length => m_JobLogs.Length;
 
         public JobLogger(int capacity, Allocator allocator)
         {
-            Allocator = allocator;
-
-            m_JobLogs = new UnsafeList<JobLog>(capacity, allocator);
+            m_Tags = new UnsafeList<int>(capacity, allocator);
+            m_JobLogs = new UnsafeList<JobLogType>(capacity, allocator);
             m_JobLogMessages = new UnsafeList<FixedString128Bytes>(capacity, allocator);
+            Errors = 0;
         }
 
-        public void Log(in JobLog header, in FixedString128Bytes message)
+        public void LogError(int tag, in FixedString128Bytes message)
         {
-            m_JobLogs.Add(header);
+            Errors++;
+            m_Tags.Add(tag);
+            m_JobLogs.Add(JobLogType.Error);
             m_JobLogMessages.Add(message);
         }
 
-        public void Log(LogType type, in FixedString128Bytes message)
+        public IEnumerator<JobLog> GetEnumerator()
         {
-            m_JobLogs.Add(new JobLog { Type = type });
-            m_JobLogMessages.Add(message);
-        }
-
-        public void Log(LogType type, int meta, in FixedString128Bytes message)
-        {
-            m_JobLogs.Add(new JobLog 
-            { 
-                Type = type,
-                MetaData1 = meta,
-            });
-            m_JobLogMessages.Add(message);
-        }
-
-        public void Log(LogType type, int meta1, int meta2, in FixedString128Bytes message)
-        {
-            m_JobLogs.Add(new JobLog
+            for (int i = 0; i < m_JobLogs.Length; i++)
             {
-                Type = type,
-                MetaData1 = meta1,
-                MetaData2 = meta2,
-            });
-            m_JobLogMessages.Add(message);
+                yield return new JobLog
+                {
+                    type = m_JobLogs[i],
+                    tag = m_Tags[i],
+                    message = m_JobLogMessages[i]
+                };
+            } 
         }
 
-        public readonly ref JobLog HeaderAt(int index)
+        IEnumerator IEnumerable.GetEnumerator()
         {
-            return ref m_JobLogs.ElementAt(index);
-        }
-
-        public readonly ref FixedString128Bytes MessageAt(int index)
-        {
-            return ref m_JobLogMessages.ElementAt(index);
+            return GetEnumerator();
         }
 
         public void Clear()
         {
+            m_Tags.Clear();
             m_JobLogs.Clear();
+            m_JobLogMessages.Clear();
+            Errors = 0;
         }
 
         public void Dispose()
         {
+            m_Tags.Dispose();
             m_JobLogs.Dispose();
+            m_JobLogMessages.Dispose();
         }
     }
 }

@@ -25,14 +25,6 @@ namespace MediaFramework.LowLevel.Unsafe
         public int Index => m_Index;
         public int Length => m_Length;
 
-        public BBitReader(in BByteReader reader)
-        {
-            m_Buffer = reader.m_Head;
-
-            m_Index = 0;
-            m_Length = (reader.Length - reader.Index) * 8;
-        }
-
         public BBitReader(NativeList<byte> list)
         {
             m_Buffer = (byte*)list.GetUnsafeReadOnlyPtr();

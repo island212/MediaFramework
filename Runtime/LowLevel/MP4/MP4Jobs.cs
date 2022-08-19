@@ -8,6 +8,9 @@ using UnityEngine;
 using System;
 using System.Collections.Generic;
 using System.Security.Cryptography;
+using UnityEngine.UIElements;
+using Unity.Assertions;
+using UnityEngine.SocialPlatforms;
 
 namespace MediaFramework.LowLevel.MP4
 {
@@ -90,17 +93,18 @@ namespace MediaFramework.LowLevel.MP4
         InvalidEntryCount,
         OverMaxPolicy,
         DuplicateBox,
+        MissingBox,
         IndexOutOfReaderRange,
         IllegalBoxDepth
     }
 
     public enum MP4Policy
-    { 
+    {
         Soft,
         Strict
     }
 
-    public struct MP4JobContext
+    public struct MP4Context : IDisposable
     {
         public int BoxDepth;
         public int VideoTrackCount;
@@ -110,27 +114,35 @@ namespace MediaFramework.LowLevel.MP4
         public uint Timescale;
         public uint NextTrackID;
 
-        public UnsafeList<MP4JobTrackContext> Tracks;
+        public UnsafeList<MP4TrackContext> TrackList;
 
-        public JobLogger Logger;
+        public ref MP4TrackContext Track =>
+            ref TrackList.ElementAt(TrackList.Length - 1);
 
-        public ref MP4JobTrackContext CurrentTrack => ref Tracks.ElementAt(Tracks.Length - 1);
+        public int Tag => GetTag(TrackList.Length);
 
-        public MP4Error LogError(MP4Error error, int index, in FixedString128Bytes message)
+        public int GetTag(int index) => (int)MP4Tag.Parse + index;
+
+        public MP4Context(Allocator allocator)
         {
-            Logger.Log(new JobLog
-            {
-                Type = LogType.Error,
-                MetaData1 = Tracks.Length,
-                MetaData2 = (int)error,
-                MetaData3 = index,
-            }, message);
+            BoxDepth = 0;
+            VideoTrackCount = 0;
+            AudioTrackCount = 0;
 
-            return error;
+            Duration = 0;
+            Timescale = 0;
+            NextTrackID = 0;
+
+            TrackList = new UnsafeList<MP4TrackContext>(8, allocator);
+        }
+
+        public void Dispose()
+        {
+            TrackList.Dispose();
         }
     }
 
-    public struct MP4JobTrackContext
+    public struct MP4TrackContext
     {
         public ISOHandler Handler;
         public uint TrackID;
@@ -152,19 +164,22 @@ namespace MediaFramework.LowLevel.MP4
 
     public struct MP4BlobJob : IJob
     {
-        public BByteReader Reader;
-
+        public NativeReference<BByteReader> Reader;
         public NativeReference<JobLogger> Logger;
         public NativeReference<BlobAssetReference<MP4Header>> Header;
-      
+        public NativeReference<FileBlock> MDAT;
+
         public unsafe void Execute()
         {
-            var context = new MP4JobContext();
-            context.Logger = Logger.Value;
+            ref var reader = ref Reader.AsRef();
+            ref var logger = ref Logger.AsRef();
 
-            var moovBox = Reader.ReadISOBox();
+            var context = new MP4Context();
 
-            var error = ISOBMFF.Read(ref context, ref Reader, moovBox);
+            var moovBox = reader.ReadISOBox();
+            Assert.AreEqual(ISOBoxType.MOOV, moovBox.type, "ISOBoxType");
+
+            var error = ISOBMFF.Read(ref context, ref reader, ref logger, moovBox);
 
             var builder = new BlobBuilder(Allocator.Temp);
             ref var header = ref builder.ConstructRoot<MP4Header>();
@@ -176,9 +191,9 @@ namespace MediaFramework.LowLevel.MP4
             header.Timescale = context.Timescale;
 
             int videoCount = 0, audioCount = 0;
-            for (int i = 0; i < context.Tracks.Length; i++)
+            for (int i = 0; i < context.TrackList.Length; i++)
             {
-                ref var source = ref context.Tracks.ElementAt(i);
+                ref var source = ref context.TrackList.ElementAt(i);
 
                 switch (source.Handler)
                 {
@@ -191,9 +206,9 @@ namespace MediaFramework.LowLevel.MP4
                             dest.Timescale = source.Timescale;
                             dest.Language = source.Language;
 
-                            BuildTimeToSampleTable(ref Reader, ref builder, ref dest.TimeToSampleTable, source.STTS);
-                            BuildSampleToChunkTable(ref Reader, ref builder, ref dest.SampleToChunkTable, source.STSC);
-                            BuildChunkOffsetTable(ref Reader, ref builder, ref dest.ChunkOffsetTable, source.STCO);
+                            BuildTimeToSampleTable(ref reader, ref builder, ref dest.TimeToSampleTable, source.STTS);
+                            BuildSampleToChunkTable(ref reader, ref builder, ref dest.SampleToChunkTable, source.STSC);
+                            BuildChunkOffsetTable(ref reader, ref builder, ref dest.ChunkOffsetTable, source.STCO);
                         }
                         break;
                     case ISOHandler.SOUN:
@@ -205,19 +220,18 @@ namespace MediaFramework.LowLevel.MP4
                             dest.Timescale = source.Timescale;
                             dest.Language = source.Language;
 
-                            BuildTimeToSampleTable(ref Reader, ref builder, ref dest.TimeToSampleTable, source.STTS);
-                            BuildSampleToChunkTable(ref Reader, ref builder, ref dest.SampleToChunkTable, source.STSC);
-                            BuildChunkOffsetTable(ref Reader, ref builder, ref dest.ChunkOffsetTable, source.STCO);
+                            BuildTimeToSampleTable(ref reader, ref builder, ref dest.TimeToSampleTable, source.STTS);
+                            BuildSampleToChunkTable(ref reader, ref builder, ref dest.SampleToChunkTable, source.STSC);
+                            BuildChunkOffsetTable(ref reader, ref builder, ref dest.ChunkOffsetTable, source.STCO);
                         }
                         break;
                 }
             }
 
             Header.Value = builder.CreateBlobAssetReference<MP4Header>(Allocator.Persistent);
-            Logger.Value = context.Logger;
 
             builder.Dispose();
-            context.Tracks.Dispose();
+            context.Dispose();
         }
 
         public static MP4Error BuildTimeToSampleTable(ref BByteReader reader, ref BlobBuilder builder, ref BlobArray<TimeSample> sttsArray, in SampleArray stts)

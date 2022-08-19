@@ -1,3 +1,4 @@
+using System;
 using System.Diagnostics;
 using System.Runtime.CompilerServices;
 using Unity.Collections;
@@ -8,15 +9,18 @@ namespace MediaFramework.LowLevel.Unsafe
     /// <summary>
     /// Byte Reader (Big-Endian) 
     /// </summary>
-    public unsafe struct BByteReader
+    [NativeContainer]
+    public unsafe struct BByteReader : IDisposable
     {
+        public readonly int m_Length;
+
+        public readonly Allocator m_allocator;
+
         [NativeDisableUnsafePtrRestriction]
         public byte* m_Head;
 
         [NativeDisableUnsafePtrRestriction]
         public readonly byte* m_Buffer;
-
-        public readonly int m_Length;
 
         public bool IsCreated => m_Head != null && m_Buffer != null && m_Length > 0;
 
@@ -37,22 +41,28 @@ namespace MediaFramework.LowLevel.Unsafe
 
         public int Remains => m_Length - Index;
 
-        public BByteReader(void* buffer, int length)
+        public BByteReader(void* ptr, int length, Allocator allocator)
         {
-            m_Buffer = m_Head = (byte*)buffer;
+            m_Buffer = m_Head = (byte*)ptr;
+
             m_Length = length;
+            m_allocator = allocator;
         }
 
-        public BByteReader(in NativeArray<byte> array)
-        {
-            m_Buffer = m_Head = (byte*)array.GetUnsafeReadOnlyPtr();
-            m_Length = array.Length;
-        }
-
-        public BByteReader(in NativeList<byte> list)
+        public BByteReader(NativeList<byte> list, Allocator allocator)
         {
             m_Buffer = m_Head = (byte*)list.GetUnsafeReadOnlyPtr();
+
             m_Length = list.Length;
+            m_allocator = allocator;
+        }
+
+        public BByteReader(int length, Allocator allocator)
+        {
+            m_Buffer = m_Head = (byte*)UnsafeUtility.Malloc(length, 4, allocator);
+
+            m_Length = length;
+            m_allocator = allocator;
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -155,6 +165,15 @@ namespace MediaFramework.LowLevel.Unsafe
         {
             if (Index + count > m_Length)
                 throw new System.ArgumentOutOfRangeException();
+        }
+
+        public void Dispose()
+        {
+            if (m_allocator == Allocator.Invalid || m_allocator == Allocator.None)
+                return;
+
+            UnsafeUtility.Free(m_Buffer, m_allocator);
+            m_Head = null;
         }
     }
 }
