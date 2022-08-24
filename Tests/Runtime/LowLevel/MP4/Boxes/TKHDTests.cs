@@ -25,7 +25,7 @@ namespace MP4.Boxes
                 Assert.AreEqual(MP4Error.None, error, "Error");
                 Assert.AreEqual(0, logger.Length, "Logger.Length");
 
-                ref var track = ref context.Track;
+                ref var track = ref context.LastTrack;
 
                 Assert.AreEqual(1, track.TrackID, "TrackID");
                 Assert.AreEqual(0, reader.Remains, "Remains");
@@ -47,7 +47,7 @@ namespace MP4.Boxes
                 Assert.AreEqual(MP4Error.None, error, "Error");
                 Assert.AreEqual(0, logger.Length, "Logger.Length");
 
-                ref var track = ref context.Track;
+                ref var track = ref context.LastTrack;
 
                 Assert.AreEqual(1, track.TrackID, "TrackID");
                 Assert.AreEqual(0, reader.Remains, "Remains");
@@ -59,7 +59,7 @@ namespace MP4.Boxes
         {
             fixed (byte* ptr = tkhdSmallVideoVersion0)
             {
-                ref var track = ref context.Track;
+                ref var track = ref context.LastTrack;
                 track.TrackID = 1;
 
                 var reader = new BByteReader(ptr, tkhdSmallVideoVersion0.Length, Allocator.None);
@@ -77,7 +77,7 @@ namespace MP4.Boxes
         {
             fixed (byte* ptr = tkhdSmallVideoVersion0)
             {
-                ref var track = ref context.Track;
+                ref var track = ref context.LastTrack;
 
                 var reader = new BByteReader(ptr, tkhdSmallVideoVersion0.Length, Allocator.None);
 
@@ -96,7 +96,7 @@ namespace MP4.Boxes
         {
             fixed (byte* ptr = tkhdSmallVideoVersion0)
             {
-                ref var track = ref context.Track;
+                ref var track = ref context.LastTrack;
 
                 var reader = new BByteReader(ptr, tkhdSmallVideoVersion0.Length, Allocator.None);
 
@@ -115,7 +115,7 @@ namespace MP4.Boxes
         {
             fixed (byte* ptr = tkhdSmallVideoVersion1)
             {
-                ref var track = ref context.Track;
+                ref var track = ref context.LastTrack;
 
                 var reader = new BByteReader(ptr, tkhdSmallVideoVersion1.Length, Allocator.None);
 
@@ -138,7 +138,7 @@ namespace MP4.Boxes
 
             ptr[8] = 3; // Change the version to 3
 
-            ref var track = ref context.Track;
+            ref var track = ref context.LastTrack;
 
             var reader = new BByteReader(ptr, tkhdSmallVideoVersion0.Length, Allocator.None);
 
@@ -149,7 +149,7 @@ namespace MP4.Boxes
             Assert.AreEqual(1, logger.Length, "Logger.Length");
         }
 
-        readonly byte[] tkhdSmallVideoVersion0 = {
+        static readonly byte[] tkhdSmallVideoVersion0 = {
 	        // Offset 0x0005CD1C to 0x0005CD77 small.mp4
 	        0x00, 0x00, 0x00, 0x5C, 0x74, 0x6B, 0x68, 0x64, 0x00, 0x00, 0x00, 0x01,
             0xC7, 0xCA, 0xEE, 0xA7, 0xC7, 0xCA, 0xEE, 0xA8, 0x00, 0x00, 0x00, 0x01,
@@ -161,7 +161,7 @@ namespace MP4.Boxes
             0x02, 0x30, 0x00, 0x00, 0x01, 0x40, 0x00, 0x00
         };
 
-        readonly byte[] tkhdSmallVideoVersion1 = {
+        static readonly byte[] tkhdSmallVideoVersion1 = {
 	        // Created manually
 	        0x00, 0x00, 0x00, 0x68, 0x74, 0x6B, 0x68, 0x64, 0x01, 0x00, 0x00, 0x01,
             0x00, 0x00, 0x00, 0x00, 0xC7, 0xCA, 0xEE, 0xA7, 0x00, 0x00, 0x00, 0x00,

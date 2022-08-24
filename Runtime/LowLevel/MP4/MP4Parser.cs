@@ -39,10 +39,23 @@ namespace MediaFramework.LowLevel.MP4
         }
     }
 
-    public enum MP4Tag
+    public struct ArrayBlock : IEquatable<ArrayBlock>
     {
-        Init = 1000,
-        Parse = 2000
+        public static ArrayBlock Invalid => new ArrayBlock(-1, -1);
+
+        public int Offset;
+        public int Length;
+
+        public ArrayBlock(int offset, int length)
+        {
+            Offset = offset;
+            Length = length;
+        }
+
+        public bool Equals(ArrayBlock other)
+        {
+            return Offset == other.Offset && Length == other.Length;
+        }
     }
 
     public struct MP4ParseHandle : IDisposable
@@ -71,13 +84,20 @@ namespace MediaFramework.LowLevel.MP4
         }
     }
 
+    public enum MP4Tag
+    {
+        Init = 10000,
+        Parse = 20000,
+        AVCCRead = Parse + 132
+    }
+
     public static class MP4Parser
     {
         public unsafe static JobHandle Parse(string path, MP4ParseHandle input, JobHandle depends)
         {
             var handle = ScheduleInit(path, input, depends);
 
-            handle = new MP4BlobJob
+            handle = new MP4ParseBlobJob
             {
                 Reader = input.Reader,
                 Logger = input.Logger,
@@ -111,22 +131,22 @@ namespace MediaFramework.LowLevel.MP4
 
             int boxesFound = 0;
 
-            long size;
             while (readCommand.Offset < infoResult.FileSize)
             {
                 using var handle = AsyncReadManager.Read(path, &readCommand, 1);
                 handle.JobHandle.Complete();
                 handle.Dispose();
 
-                var isoBox = reader.PeekISOBox(0);
+                var isoBox = reader.ReadISOBox();
 
+                long size;
                 if (isoBox.size >= ISOBox.ByteNeeded)
                 {
                     size = isoBox.size;
                 }
                 else if (isoBox.size == 1)
                 {
-                    size = (long)BigEndian.ReadUInt64(reader.m_Head + ISOBox.ByteNeeded);
+                    size = (long)reader.ReadUInt64();
                 }
                 else if (isoBox.size == 0)
                 {
@@ -148,7 +168,7 @@ namespace MediaFramework.LowLevel.MP4
                                 reader = new BByteReader((int)isoBox.size, Allocator.TempJob);
 
                                 ReadCommand readerCommand;
-                                readerCommand.Buffer = reader.m_Buffer;
+                                readerCommand.Buffer = reader.GetUnsafePtr();
                                 readerCommand.Size = reader.Length;
                                 readerCommand.Offset = readCommand.Offset;
 

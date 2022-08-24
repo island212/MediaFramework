@@ -14,7 +14,7 @@ using Unity.Jobs;
 
 namespace MP4
 {
-    public class MP4BlobJobTests
+    public class MP4ParseBlobJobTests
     {
         NativeReference<FileBlock> MDAT;
         NativeReference<BByteReader> Reader;
@@ -36,15 +36,18 @@ namespace MP4
         [TearDown]
         public void TearDown()
         {
-            Logger.Value.Dispose();
+            if(Logger.Value.IsCreated)
+                Logger.Value.Dispose();
+
+            if (Header.Value.IsCreated)
+                Header.Value.Dispose();
+
+            if (Reader.Value.IsCreated)
+                Reader.Value.Dispose();
+
             Logger.Dispose();
-
             MDAT.Dispose();
-
-            Reader.Value.Dispose();
             Reader.Dispose();
-
-            Header.Value.Dispose();
             Header.Dispose();
         }
 
@@ -74,7 +77,7 @@ namespace MP4
             {
                 Reader.Value = new BByteReader(ptr, BoxTestCore.MOOVBuffer.Length, Allocator.None);
 
-                new MP4BlobJob {
+                new MP4ParseBlobJob {
                     Reader = Reader,
                     Logger = Logger,
                     Header = Header,
@@ -86,6 +89,7 @@ namespace MP4
 
                 PrintLog();
 
+                Assert.IsTrue(header.IsCreated, "Header.IsCreated");
                 Assert.AreEqual(0, logger.Length, "Logger.Length");
 
                 Assert.AreEqual(501120, header.Value.Duration, "Duration");

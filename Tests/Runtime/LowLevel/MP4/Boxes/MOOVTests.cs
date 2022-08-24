@@ -48,7 +48,8 @@ namespace MP4.Boxes
                 Assert.AreEqual(498000, track1.Duration, "track1.MDHD.Duration");
                 Assert.AreEqual(90000, track1.Timescale, "track1.MDHD.Timescale");
                 Assert.AreEqual(ISOLanguage.UND, track1.Language, "track1.MDHD.Language");
-                Assert.AreEqual(385, track1.STSDIndex, "track1.STSD.Index");
+                //Assert.AreEqual(385, track1.STSDIndex, "track1.STSD.Index");
+                throw new System.NotImplementedException();
                 Assert.AreEqual(1, track1.STTS.EntryCount, "track1.STTS.EntryCount");
                 Assert.AreEqual(572, track1.STTS.SampleIndex, "track1.STTS.SampleIndex");
                 Assert.AreEqual(2, track1.STSC.EntryCount, "track1.STSC.EntryCount");
@@ -63,7 +64,8 @@ namespace MP4.Boxes
                 Assert.AreEqual(267264, track2.Duration, "track2.MDHD.Duration");
                 Assert.AreEqual(48000, track2.Timescale, "track2.MDHD.Timescale");
                 Assert.AreEqual(ISOLanguage.ENG, track2.Language, "track2.MDHD.Language");
-                Assert.AreEqual(1927, track2.STSDIndex, "track2.STSD.Index");
+                //Assert.AreEqual(1927, track2.STSDIndex, "track2.STSD.Index");
+                throw new System.NotImplementedException();
                 Assert.AreEqual(1, track2.STTS.EntryCount, "track2.STTS.EntryCount");
                 Assert.AreEqual(2046, track2.STTS.SampleIndex, "track2.STTS.SampleIndex");
                 Assert.AreEqual(2, track2.STSC.EntryCount, "track2.STSC.EntryCount");

@@ -22,7 +22,7 @@ namespace MP4.Boxes
                 Assert.AreEqual(MP4Error.None, error, "Error");
                 Assert.AreEqual(0, logger.Length, "Logger.Length");
 
-                ref var track = ref context.Track;
+                ref var track = ref context.LastTrack;
 
                 Assert.AreEqual(2, track.STSC.EntryCount, "EntryCount");
                 Assert.AreEqual(16, track.STSC.SampleIndex, "SampleIndex");
@@ -35,7 +35,7 @@ namespace MP4.Boxes
         {
             fixed (byte* ptr = stscSmallVideo)
             {
-                ref var track = ref context.Track;
+                ref var track = ref context.LastTrack;
                 track.STSC.EntryCount = 1;
 
                 var reader = new BByteReader(ptr, stscSmallVideo.Length, Allocator.None);
@@ -53,7 +53,7 @@ namespace MP4.Boxes
         {
             fixed (byte* ptr = stscSmallVideo)
             {
-                ref var track = ref context.Track;
+                ref var track = ref context.LastTrack;
 
                 var reader = new BByteReader(ptr, stscSmallVideo.Length, Allocator.None);
 
@@ -72,7 +72,7 @@ namespace MP4.Boxes
         {
             fixed (byte* ptr = stscSmallVideo)
             {
-                ref var track = ref context.Track;
+                ref var track = ref context.LastTrack;
 
                 var reader = new BByteReader(ptr, stscSmallVideo.Length, Allocator.None);
 
@@ -91,7 +91,7 @@ namespace MP4.Boxes
         {
             fixed (byte* ptr = stscSmallVideo)
             {
-                ref var track = ref context.Track;
+                ref var track = ref context.LastTrack;
 
                 var reader = new BByteReader(ptr, stscSmallVideo.Length, Allocator.None);
 
@@ -105,7 +105,7 @@ namespace MP4.Boxes
             }
         }
 
-        readonly byte[] stscSmallVideo = {
+        static readonly byte[] stscSmallVideo = {
 	        // Offset 0x0005D178 to 0x0005D19F small.mp4
 	        0x00, 0x00, 0x00, 0x28, 0x73, 0x74, 0x73, 0x63, 0x00, 0x00, 0x00, 0x00,
             0x00, 0x00, 0x00, 0x02, 0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x04,

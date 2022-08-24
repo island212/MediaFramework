@@ -14,13 +14,13 @@ namespace MediaFramework.LowLevel.Unsafe
     {
         public readonly int m_Length;
 
-        public readonly Allocator m_allocator;
+        private readonly Allocator m_Allocator;
 
         [NativeDisableUnsafePtrRestriction]
-        public byte* m_Head;
+        private byte* m_Head;
 
         [NativeDisableUnsafePtrRestriction]
-        public readonly byte* m_Buffer;
+        private readonly byte* m_Buffer;
 
         public bool IsCreated => m_Head != null && m_Buffer != null && m_Length > 0;
 
@@ -46,7 +46,7 @@ namespace MediaFramework.LowLevel.Unsafe
             m_Buffer = m_Head = (byte*)ptr;
 
             m_Length = length;
-            m_allocator = allocator;
+            m_Allocator = allocator;
         }
 
         public BByteReader(NativeList<byte> list, Allocator allocator)
@@ -54,7 +54,7 @@ namespace MediaFramework.LowLevel.Unsafe
             m_Buffer = m_Head = (byte*)list.GetUnsafeReadOnlyPtr();
 
             m_Length = list.Length;
-            m_allocator = allocator;
+            m_Allocator = allocator;
         }
 
         public BByteReader(int length, Allocator allocator)
@@ -62,7 +62,7 @@ namespace MediaFramework.LowLevel.Unsafe
             m_Buffer = m_Head = (byte*)UnsafeUtility.Malloc(length, 4, allocator);
 
             m_Length = length;
-            m_allocator = allocator;
+            m_Allocator = allocator;
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -103,7 +103,7 @@ namespace MediaFramework.LowLevel.Unsafe
             CheckForOutOfRange(8);
 
             return (ulong)*m_Head++ << 56 | (ulong)*m_Head++ << 48 | (ulong)*m_Head++ << 40 | (ulong)*m_Head++ << 32 |
-                   (ulong)*m_Head++ << 24 | (ulong)*m_Head++ << 16 | (ulong)*m_Head++ << 8 | *m_Head++;
+                   (ulong)*m_Head++ << 24 | (ulong)*m_Head++ << 16 | (ulong)*m_Head++ << 08 | *m_Head++;
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -144,7 +144,7 @@ namespace MediaFramework.LowLevel.Unsafe
             CheckForOutOfRange(8);
 
             return (long)*m_Head++ << 56 | (long)*m_Head++ << 48 | (long)*m_Head++ << 40 | (long)*m_Head++ << 32 |
-                   (long)*m_Head++ << 24 | (long)*m_Head++ << 16 | (long)*m_Head++ << 8 | *m_Head++;
+                   (long)*m_Head++ << 24 | (long)*m_Head++ << 16 | (long)*m_Head++ << 08 | *m_Head++;
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -153,26 +153,34 @@ namespace MediaFramework.LowLevel.Unsafe
             m_Head += count;
         }
 
+        public void* GetUnsafePtr() => m_Buffer;
+
         [Conditional("ENABLE_UNITY_COLLECTIONS_CHECKS")]
-        public void CheckForValidRange(int index)
+        private void CheckForValidRange(int index)
         {
+            if (!IsValid)
+                throw new System.InvalidOperationException();
+
             if (index < 0 || index > Length)
                 throw new System.ArgumentOutOfRangeException();
         }
 
         [Conditional("ENABLE_UNITY_COLLECTIONS_CHECKS")]
-        public void CheckForOutOfRange(uint count)
+        private void CheckForOutOfRange(int count)
         {
+            if(!IsValid)
+                throw new System.InvalidOperationException();
+
             if (Index + count > m_Length)
                 throw new System.ArgumentOutOfRangeException();
         }
 
         public void Dispose()
         {
-            if (m_allocator == Allocator.Invalid || m_allocator == Allocator.None)
+            if (m_Allocator == Allocator.Invalid || m_Allocator == Allocator.None)
                 return;
 
-            UnsafeUtility.Free(m_Buffer, m_allocator);
+            UnsafeUtility.Free(m_Buffer, m_Allocator);
             m_Head = null;
         }
     }

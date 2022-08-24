@@ -46,6 +46,8 @@ namespace MediaFramework.LowLevel
             Errors = 0;
         }
 
+        public void LogError(in FixedString128Bytes message) => LogError(0, message);
+
         public void LogError(int tag, in FixedString128Bytes message)
         {
             Errors++;
@@ -64,7 +66,7 @@ namespace MediaFramework.LowLevel
                     tag = m_Tags[i],
                     message = m_JobLogMessages[i]
                 };
-            } 
+            }
         }
 
         IEnumerator IEnumerable.GetEnumerator()

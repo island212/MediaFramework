@@ -16,9 +16,7 @@ namespace MP4.Boxes
         [OneTimeSetUp]
         protected virtual void OneTimeSetUp()
         {
-            context = new MP4Context();
-            context.TrackList = new UnsafeList<MP4TrackContext>(1, Allocator.Temp);
-
+            context = new MP4Context(Allocator.Temp);
             logger = new JobLogger(16, Allocator.Temp);
         }
 
@@ -39,11 +37,7 @@ namespace MP4.Boxes
         protected virtual void TearDown()
         {
             logger.Clear();
-            context.TrackList.Clear();
-
-            var newContext = new MP4Context();
-            newContext.TrackList = context.TrackList;
-            context = newContext;
+            context.Clear();
         }
 
         protected void PrintLog()

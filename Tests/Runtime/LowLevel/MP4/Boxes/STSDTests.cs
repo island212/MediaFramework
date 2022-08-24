@@ -20,6 +20,8 @@ namespace MP4.Boxes
         {
             fixed (byte* ptr = stsdSmallVideo)
             {
+                context.LastTrack.Handler = ISOHandler.VIDE;
+
                 var reader = new BByteReader(ptr, stsdSmallVideo.Length, Allocator.None);
 
                 var isoBox = reader.ReadISOBox();
@@ -30,32 +32,55 @@ namespace MP4.Boxes
                 Assert.AreEqual(MP4Error.None, error, "Error");
                 Assert.AreEqual(0, logger.Length, "Logger.Length");
 
-                ref var track = ref context.Track;
+                ref var track = ref context.LastTrack;
 
-                Assert.AreEqual(0, track.STSDIndex, "STSD.Index");
+                Assert.AreEqual(0, track.Descriptions.Offset, "Offset");
+                Assert.AreEqual(1, track.Descriptions.Length, "Length");
+
+                ref var video = ref context.LastVideo;
+
+                Assert.AreEqual(1, video.ReferenceIndex, "ReferenceIndex");
+
+                Assert.AreEqual(VideoCodec.H264, video.CodecID, "CodecID");
+                Assert.AreEqual(0x61766331u, video.CodecTag, "CodecTag");
+
+                Assert.AreEqual(66, video.Profile.Type, "Type");
+                Assert.AreEqual(192, video.Profile.Constraints, "Constraints");
+                Assert.AreEqual(30, video.Profile.Level, "Level");
+
+                Assert.AreEqual(560, video.Width, "Width");
+                Assert.AreEqual(320, video.Height, "Height");
+                Assert.AreEqual(24, video.Depth, "Depth");
+
+                Assert.AreEqual(115, video.SPS.Offset, "SPS.Offset");
+                Assert.AreEqual(30, video.SPS.Length, "SPS.Length");
+
+                Assert.AreEqual(145, video.PPS.Offset, "PPS.Offset");
+                Assert.AreEqual(8, video.PPS.Length, "PPS.Length");
+
                 Assert.AreEqual(0, reader.Remains, "Remains");
             }
         }
 
-        [Test]
-        public unsafe void Read_OneNoneDefaultValue_DuplicateBox()
-        {
-            fixed (byte* ptr = stsdSmallVideo)
-            {
-                ref var track = ref context.Track;
-                track.STSDIndex = 5;
+        //[Test]
+        //public unsafe void Read_OneNoneDefaultValue_DuplicateBox()
+        //{
+        //    fixed (byte* ptr = stsdSmallVideo)
+        //    {
+        //        ref var track = ref context.LastTrack;
+        //        track.STSDIndex = 5;
 
-                var reader = new BByteReader(ptr, stsdSmallVideo.Length, Allocator.None);
+        //        var reader = new BByteReader(ptr, stsdSmallVideo.Length, Allocator.None);
 
-                var isoBox = reader.ReadISOBox();
-                var error = STSDBox.Read(ref context, ref reader, ref logger, isoBox);
+        //        var isoBox = reader.ReadISOBox();
+        //        var error = STSDBox.Read(ref context, ref reader, ref logger, isoBox);
 
-                Assert.AreEqual(MP4Error.DuplicateBox, error, "Error");
-                Assert.AreEqual(1, logger.Length, "Logger.Length");
-            }
-        }
+        //        Assert.AreEqual(MP4Error.DuplicateBox, error, "Error");
+        //        Assert.AreEqual(1, logger.Length, "Logger.Length");
+        //    }
+        //}
 
-        readonly byte[] stsdSmallVideo = {
+        static readonly byte[] stsdSmallVideo = {
 	        // Offset 0x0005CE09 to 0x0005CEB3 small.mp4
 	        0x00, 0x00, 0x00, 0xAB, 0x73, 0x74, 0x73, 0x64, 0x00, 0x00, 0x00, 0x00,
             0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x9B, 0x61, 0x76, 0x63, 0x31,

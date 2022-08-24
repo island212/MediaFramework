@@ -151,17 +151,17 @@ namespace MediaFramework.LowLevel.Codecs
         public byte* mat02 => m_Buffer + 32;
         public byte* mat03 => m_Buffer + 48;
         public byte* mat04 => m_Buffer + 64;
-        public byte* mat05 => m_Buffer + 70;
-        public byte* mat06 => m_Buffer + 32;
-        public byte* mat07 => m_Buffer + 32;
-        public byte* mat08 => m_Buffer + 32;
-        public byte* mat09 => m_Buffer + 32;
-        public byte* mat10 => m_Buffer + 32;
-        public byte* mat11 => m_Buffer + 32;
+        public byte* mat05 => m_Buffer + 80;
+        public byte* mat06 => m_Buffer + 96;
+        public byte* mat07 => m_Buffer + 160;
+        public byte* mat08 => m_Buffer + 224;
+        public byte* mat09 => m_Buffer + 288;
+        public byte* mat10 => m_Buffer + 352;
+        public byte* mat11 => m_Buffer + 416;
 
         public SPSError Parse(ref BBitReader reader, bool isYUV444, Allocator allocator)
         {
-            m_Buffer = (byte*)UnsafeUtility.Malloc(6 * 16 + 6 * 64, 1, allocator);
+            m_Buffer = (byte*)UnsafeUtility.Malloc(isYUV444 ? 480 : 224, 4, allocator);
 
             fixed (byte* default4Intra = DefaultIntra4x4)
             fixed (byte* default4Inter = DefaultInter4x4)
@@ -477,7 +477,7 @@ namespace MediaFramework.LowLevel.Codecs
             Profile.Level = reader.ReadUInt8();         // level_idc
 
             var spsData = stackalloc byte[reader.Remains];
-            int length = CopyAndSanitizeSPSData(spsData, reader.m_Head, reader.Remains);
+            int length = CopyAndSanitizeSPSData(spsData, (byte*)reader.GetUnsafePtr() + reader.Index, reader.Remains);
             var spsReader = new BBitReader(spsData, length);
 
             var rError = ReaderError.None;
@@ -859,7 +859,7 @@ namespace MediaFramework.LowLevel.Codecs
 
         public void Dispose()
         {
-            if (Allocator == Allocator.Invalid && Allocator == Allocator.None)
+            if (Allocator == Allocator.Invalid || Allocator == Allocator.None)
                 return;
 
             if (ScalingMatrix.m_Buffer != null)

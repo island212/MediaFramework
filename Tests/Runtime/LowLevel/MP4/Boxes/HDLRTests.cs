@@ -29,7 +29,7 @@ namespace MP4.Boxes
                 Assert.AreEqual(MP4Error.None, error, "Error");
                 Assert.AreEqual(0, logger.Length, "Logger.Length");
 
-                ref var track = ref context.Track;
+                ref var track = ref context.LastTrack;
 
                 Assert.AreEqual(ISOHandler.VIDE, track.Handler, "Handler");
                 Assert.AreEqual(0, reader.Remains, "Remains");
@@ -55,7 +55,7 @@ namespace MP4.Boxes
             Assert.AreEqual(MP4Error.None, error, "Error");
             Assert.AreEqual(0, logger.Length, "Logger.Length");
 
-            ref var track = ref context.Track;
+            ref var track = ref context.LastTrack;
 
             Assert.AreEqual(ISOHandler.VIDE, track.Handler, "Handler");
         }
@@ -65,7 +65,7 @@ namespace MP4.Boxes
         {
             fixed (byte* ptr = hdlrSmall)
             {
-                ref var track = ref context.Track;
+                ref var track = ref context.LastTrack;
                 track.Handler = ISOHandler.VIDE;
 
                 var reader = new BByteReader(ptr, hdlrSmall.Length, Allocator.None);
@@ -83,8 +83,6 @@ namespace MP4.Boxes
         {
             fixed (byte* ptr = hdlrSmall)
             {
-                ref var track = ref context.Track;
-
                 var reader = new BByteReader(ptr, hdlrSmall.Length, Allocator.None);
 
                 var isoBox = reader.ReadISOBox();
@@ -97,7 +95,7 @@ namespace MP4.Boxes
             }
         }
 
-        readonly byte[] hdlrSmall = {
+        static readonly byte[] hdlrSmall = {
 	        // Offset 0x0005CDA0 to 0x0005CDC0 small.mp4
 	        0x00, 0x00, 0x00, 0x21, 0x68, 0x64, 0x6C, 0x72, 0x00, 0x00, 0x00, 0x00,
             0x00, 0x00, 0x00, 0x00, 0x76, 0x69, 0x64, 0x65, 0x00, 0x00, 0x00, 0x00,

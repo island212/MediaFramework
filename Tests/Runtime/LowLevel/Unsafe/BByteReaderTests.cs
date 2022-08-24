@@ -43,7 +43,7 @@ namespace Unsafe
 
             unsafe
             {
-                Assert.IsTrue(byteReader.m_Buffer == Stream.GetUnsafeReadOnlyPtr(), "Buffer");
+                Assert.IsTrue(byteReader.GetUnsafePtr() == Stream.GetUnsafeReadOnlyPtr(), "Buffer");
                 Assert.AreEqual(0, byteReader.Index, "Index");
                 Assert.AreEqual(3, byteReader.Length, "Length");
                 Assert.IsTrue(byteReader.IsValid, "IsValid");
@@ -78,7 +78,7 @@ namespace Unsafe
 #endif
             var byteReader = new BByteReader(Stream, Allocator.None);
 
-            Assert.Throws<ArgumentOutOfRangeException>(() => byteReader.ReadUInt8());
+            Assert.Throws<InvalidOperationException>(() => byteReader.ReadUInt8());
         }
 
         [Test]
@@ -109,7 +109,7 @@ namespace Unsafe
 #endif
             var byteReader = new BByteReader(Stream, Allocator.None);
 
-            Assert.Throws<ArgumentOutOfRangeException>(() => byteReader.ReadInt8());
+            Assert.Throws<InvalidOperationException>(() => byteReader.ReadInt8());
         }
 
         [Test]
