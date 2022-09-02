@@ -44,19 +44,22 @@ namespace MP4.Boxes
                 Assert.AreEqual(VideoCodec.H264, video.CodecID, "CodecID");
                 Assert.AreEqual(0x61766331u, video.CodecTag, "CodecTag");
 
-                Assert.AreEqual(66, video.Profile.Type, "Type");
-                Assert.AreEqual(192, video.Profile.Constraints, "Constraints");
-                Assert.AreEqual(30, video.Profile.Level, "Level");
+                //Assert.AreEqual(66, video.Profile.Type, "Type");
+                //Assert.AreEqual(192, video.Profile.Constraints, "Constraints");
+                //Assert.AreEqual(30, video.Profile.Level, "Level");
 
-                Assert.AreEqual(560, video.Width, "Width");
-                Assert.AreEqual(320, video.Height, "Height");
-                Assert.AreEqual(24, video.Depth, "Depth");
+                //Assert.AreEqual(560, video.Width, "Width");
+                //Assert.AreEqual(320, video.Height, "Height");
+                //Assert.AreEqual(24, video.Depth, "Depth");
 
-                Assert.AreEqual(115, video.SPS.Offset, "SPS.Offset");
-                Assert.AreEqual(30, video.SPS.Length, "SPS.Length");
+                //Assert.AreEqual(115, video.SPS.Offset, "SPS.Offset");
+                //Assert.AreEqual(30, video.SPS.Length, "SPS.Length");
 
-                Assert.AreEqual(145, video.PPS.Offset, "PPS.Offset");
-                Assert.AreEqual(8, video.PPS.Length, "PPS.Length");
+                //Assert.AreEqual(145, video.PPS.Offset, "PPS.Offset");
+                //Assert.AreEqual(8, video.PPS.Length, "PPS.Length");
+
+                Assert.AreEqual(102, video.Extra.Offset, "Extra.Offset");
+                Assert.AreEqual(69, video.Extra.Length, "Extra.Length");
 
                 Assert.AreEqual(0, reader.Remains, "Remains");
             }

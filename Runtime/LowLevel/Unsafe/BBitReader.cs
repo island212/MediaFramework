@@ -33,9 +33,9 @@ namespace MediaFramework.LowLevel.Unsafe
             m_Length = list.Length * 8;
         }
 
-        public BBitReader(byte* buffer, int length)
+        public BBitReader(void* buffer, int length)
         {
-            m_Buffer = buffer;
+            m_Buffer = (byte*)buffer;
 
             m_Index = 0;
             m_Length = length * 8;

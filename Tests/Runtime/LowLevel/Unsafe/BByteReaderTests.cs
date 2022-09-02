@@ -564,6 +564,10 @@ namespace Unsafe
         [Test]
         public void Seek_NegativeIndex_Pass()
         {
+#if !ENABLE_UNITY_COLLECTIONS_CHECKS
+            Assert.Ignore();
+#endif
+
             Stream.Add(0xD9);
             Stream.Add(0xDB);
             Stream.Add(0x58);
@@ -571,14 +575,16 @@ namespace Unsafe
 
             var byteReader = new BByteReader(Stream, Allocator.None);
 
-            byteReader.Seek(-1);
-
-            Assert.AreEqual(-1, byteReader.Index);
+            Assert.Throws<ArgumentOutOfRangeException>(() => byteReader.Seek(-1));
         }
 
         [Test]
         public void Seek_OneByteOverflow_Pass()
         {
+#if !ENABLE_UNITY_COLLECTIONS_CHECKS
+            Assert.Ignore();
+#endif
+
             Stream.Add(0xD9);
             Stream.Add(0xDB);
             Stream.Add(0x58);
@@ -586,9 +592,7 @@ namespace Unsafe
 
             var byteReader = new BByteReader(Stream, Allocator.None);
 
-            byteReader.Seek(5);
-
-            Assert.AreEqual(5, byteReader.Index);
+            Assert.Throws<ArgumentOutOfRangeException>(() => byteReader.Seek(5));
         }
 
         [Test]

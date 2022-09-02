@@ -1,3 +1,4 @@
+using MediaFramework.LowLevel.MP4;
 using System;
 using System.Diagnostics;
 using System.Runtime.CompilerServices;
@@ -12,7 +13,7 @@ namespace MediaFramework.LowLevel.Unsafe
     [NativeContainer]
     public unsafe struct BByteReader : IDisposable
     {
-        public readonly int m_Length;
+        private readonly int m_Length;
 
         private readonly Allocator m_Allocator;
 
@@ -150,7 +151,22 @@ namespace MediaFramework.LowLevel.Unsafe
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public void Seek(int count)
         {
+            CheckForValidRange(Index + count);
+
             m_Head += count;
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public ArrayBlock SeekArray(int length)
+        {
+            CheckForValidRange(Index + length);
+
+            m_Head += length;
+            return new ArrayBlock
+            {
+                Offset = Index - length,
+                Length = length
+            };
         }
 
         public void* GetUnsafePtr() => m_Buffer;

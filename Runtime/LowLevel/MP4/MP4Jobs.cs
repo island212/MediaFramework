@@ -110,23 +110,25 @@ namespace MediaFramework.LowLevel.MP4
 
         public VideoCodec CodecID;
         public uint CodecTag;
-        public SPSProfile Profile;
 
         public uint Width, Height;
         public int Depth;
 
-        public ArrayBlock SPS;
-        public ArrayBlock PPS;
+        public ArrayBlock Extra;
     }
 
     public struct MP4AudioDescription
     {
-
+        public int Samplerate;
+        public int ChannelCount;
     }
 
     public struct MP4Context : IDisposable
     {
         public int BoxDepth;
+
+        public ISODate CreationTime;
+        public ISODate ModificationTime;
 
         public ulong Duration;
         public uint Timescale;
@@ -152,6 +154,9 @@ namespace MediaFramework.LowLevel.MP4
         public MP4Context(Allocator allocator)
         {
             BoxDepth = 0;
+
+            CreationTime = 0;
+            ModificationTime = 0;
 
             Duration = 0;
             Timescale = 0;
