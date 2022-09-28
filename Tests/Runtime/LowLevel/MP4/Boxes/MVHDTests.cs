@@ -24,6 +24,9 @@ namespace MP4.Boxes
                 Assert.AreEqual(MP4Error.None, error, "Error");
                 Assert.AreEqual(0, logger.Length, "Logger.Length");
 
+                Assert.AreEqual(3351965351, context.CreationTime.value, "CreationTime");
+                Assert.AreEqual(3351965352, context.ModificationTime.value, "ModificationTime");
+
                 Assert.AreEqual(90000, context.Timescale, "TimeScale");
                 Assert.AreEqual(501120, context.Duration, "Duration");
                 Assert.AreEqual(3, context.NextTrackID, "NextTrackID");
@@ -45,6 +48,9 @@ namespace MP4.Boxes
 
                 Assert.AreEqual(MP4Error.None, error, "Error");
                 Assert.AreEqual(0, logger.Length, "Logger.Length");
+
+                Assert.AreEqual(3351965351, context.CreationTime.value, "CreationTime");
+                Assert.AreEqual(3351965352, context.ModificationTime.value, "ModificationTime");
 
                 Assert.AreEqual(90000, context.Timescale, "TimeScale");
                 Assert.AreEqual(501120, context.Duration, "Duration");

@@ -1,5 +1,4 @@
 ﻿using MediaFramework.LowLevel.Unsafe;
-using Unity.Entities;
 using UnityEngine.TestTools;
 
 namespace MediaFramework.LowLevel.Codecs

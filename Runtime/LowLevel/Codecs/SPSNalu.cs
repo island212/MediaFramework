@@ -5,9 +5,6 @@ using Unity.Collections.LowLevel.Unsafe;
 using MediaFramework.LowLevel.Unsafe;
 using Unity.Mathematics;
 using UnityEngine.TestTools;
-using Unity.Entities;
-using Palmmedia.ReportGenerator.Core.Parser.Filtering;
-using System.Numerics;
 
 namespace MediaFramework.LowLevel.Codecs
 {

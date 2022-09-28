@@ -43,7 +43,7 @@ namespace MP4.Boxes
             for (int i = 0; i < hdlrSmall.Length; i++)
                 ptr[i] = hdlrSmall[i];
 
-            var reader = new BByteReader(ptr, hdlrSmall.Length, Allocator.None);
+            var reader = new BByteReader(ptr, hdlrSmall.Length + 7, Allocator.None);
 
             var isoBox = reader.ReadISOBox();
             isoBox.size = (uint)hdlrSmall.Length + 7;

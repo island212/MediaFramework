@@ -1,20 +1,9 @@
-﻿using log4net.Repository.Hierarchy;
-using MediaFramework.LowLevel.Codecs;
-using MediaFramework.LowLevel.Unsafe;
+﻿using MediaFramework.LowLevel.Unsafe;
 using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 using Unity.Collections;
 using Unity.Collections.LowLevel.Unsafe;
-using Unity.Entities;
 using Unity.IO.LowLevel.Unsafe;
 using Unity.Jobs;
-using UnityEngine;
-using UnityEngine.UIElements;
-using static CodiceApp.EventTracking.EventModelSerialization;
-using static UnityEngine.Rendering.VirtualTexturing.Debugging;
 
 namespace MediaFramework.LowLevel.MP4
 {
@@ -62,14 +51,14 @@ namespace MediaFramework.LowLevel.MP4
     {
         public NativeReference<JobLogger> Logger;
         public NativeReference<BByteReader> Reader;
-        public NativeReference<BlobAssetReference<MP4Header>> Header;
+        //public NativeReference<BlobAssetReference<MP4Header>> Header;
         public NativeReference<FileBlock> MDAT;
 
         public MP4ParseHandle(Allocator allocator)
         {
             Logger = new NativeReference<JobLogger>(allocator);
             Reader = new NativeReference<BByteReader>(allocator);
-            Header = new NativeReference<BlobAssetReference<MP4Header>>(allocator);
+            //Header = new NativeReference<BlobAssetReference<MP4Header>>(allocator);
 
             MDAT = new NativeReference<FileBlock>(allocator);
             MDAT.Value = FileBlock.Invalid;
@@ -79,7 +68,7 @@ namespace MediaFramework.LowLevel.MP4
         {
             Logger.Dispose();
             Reader.Dispose();
-            Header.Dispose();
+            //Header.Dispose();
             MDAT.Dispose();
         }
     }
@@ -97,13 +86,13 @@ namespace MediaFramework.LowLevel.MP4
         {
             var handle = ScheduleInit(path, input, depends);
 
-            handle = new MP4ParseBlobJob
-            {
-                Reader = input.Reader,
-                Logger = input.Logger,
-                Header = input.Header,
-                MDAT = input.MDAT
-            }.Schedule(handle);
+            //handle = new MP4ParseBlobJob
+            //{
+            //    Reader = input.Reader,
+            //    Logger = input.Logger,
+            //    Header = input.Header,
+            //    MDAT = input.MDAT
+            //}.Schedule(handle);
             return handle;
         }
 

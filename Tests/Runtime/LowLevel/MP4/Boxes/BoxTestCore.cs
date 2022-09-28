@@ -47,13 +47,13 @@ namespace MP4.Boxes
                 switch (log.type)
                 {
                     case JobLogType.Log:
-                        UnityEngine.Debug.Log(log.message);
+                        UnityEngine.Debug.Log($"{log.tag} - {log.message}");
                         break;
                     case JobLogType.Warning:
-                        UnityEngine.Debug.LogWarning(log.message);
+                        UnityEngine.Debug.LogWarning($"{log.tag} - {log.message}");
                         break;
                     case JobLogType.Error:
-                        UnityEngine.Debug.LogError(log.message);
+                        UnityEngine.Debug.LogError($"{log.tag} - {log.message}");
                         break;
                 }
             }

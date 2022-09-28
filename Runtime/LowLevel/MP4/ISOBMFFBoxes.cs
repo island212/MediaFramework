@@ -1,18 +1,9 @@
-﻿using log4net.Repository.Hierarchy;
-using MediaFramework.LowLevel.Codecs;
-using MediaFramework.LowLevel.MP4;
-using MediaFramework.LowLevel.Unsafe;
+﻿using MediaFramework.LowLevel.Unsafe;
 using System;
 using System.Diagnostics;
-using System.Linq;
 using System.Runtime.CompilerServices;
-using Unity.Assertions;
 using Unity.Collections;
 using Unity.Collections.LowLevel.Unsafe;
-using Unity.Mathematics;
-using UnityEngine;
-using static CodiceApp.EventTracking.EventModelSerialization;
-using static PlasticPipe.Server.MonitorStats;
 
 namespace MediaFramework.LowLevel.MP4
 {
@@ -28,6 +19,8 @@ namespace MediaFramework.LowLevel.MP4
     public struct ISODate
     {
         public ulong value;
+
+        public static implicit operator ISODate(ulong d) => new ISODate { value = d };
     }
 
     public struct SampleGroup
@@ -72,6 +65,10 @@ namespace MediaFramework.LowLevel.MP4
 
                 switch (isoBox.type)
                 {
+                    case ISOBoxType.STBL:
+                    case ISOBoxType.MINF:
+                    case ISOBoxType.MDIA: error = Read(ref context, ref reader, ref logger, isoBox); break;
+
                     case ISOBoxType.MVHD: error = MVHDBox.Read(ref context, ref reader, ref logger, isoBox); break;
                     case ISOBoxType.MDHD: error = MDHDBox.Read(ref context, ref reader, ref logger, isoBox); break;
                     case ISOBoxType.TRAK: error = TRAKBox.Read(ref context, ref reader, ref logger, isoBox); break;
@@ -82,9 +79,6 @@ namespace MediaFramework.LowLevel.MP4
                     case ISOBoxType.STTS: error = STTSBox.Read(ref context, ref reader, ref logger, isoBox); break;
                     case ISOBoxType.STSC: error = STSCBox.Read(ref context, ref reader, ref logger, isoBox); break;
                     case ISOBoxType.STCO: error = STCOBox.Read(ref context, ref reader, ref logger, isoBox); break;
-                    case ISOBoxType.STBL:
-                    case ISOBoxType.MINF:
-                    case ISOBoxType.MDIA: error = Read(ref context, ref reader, ref logger, isoBox); break;
                     default: 
                         reader.Seek((int)isoBox.size - ISOBox.ByteNeeded); 
                         break;
@@ -93,7 +87,7 @@ namespace MediaFramework.LowLevel.MP4
                 if (error != MP4Error.None)
                     return error;
 
-                Assert.AreEqual((int)isoBox.size, reader.Index - start, $"{isoBox.type} didn't read all the bytes");
+                // //Assert.AreEqual((int)isoBox.size, reader.Index - start, $"{isoBox.type} didn't read all the bytes");
             }
 
             context.BoxDepth--;
@@ -104,13 +98,13 @@ namespace MediaFramework.LowLevel.MP4
 
     public static class VisualSampleEntry
     {
-        public const int MinSize = 86;
+        public const int Size = 86;
 
         public static MP4Error Read(ref MP4Context context, ref BByteReader reader, ref JobLogger logger, in ISOBox box)
         {
-            if (box.size < MinSize)
+            if (box.size == Size)
             {
-                logger.LogError(context.Tag, $"{MP4Error.InvalidBoxSize}: {box.type} minimum size is {MinSize} but was {box.size}");
+                logger.LogError(context.Tag, $"{MP4Error.InvalidBoxSize}: {box.type} size is {Size} but was {box.size}");
                 return MP4Error.InvalidBoxSize;
             }
 
@@ -135,6 +129,89 @@ namespace MediaFramework.LowLevel.MP4
     }
 
     /// <summary>
+    /// AudioSpecificConfig ISO 14496-3 Section 1.6.2.1
+    /// </summary>
+    public static class ESDSBox
+    {
+        public const int HeaderSize = 12;
+        public const int MinSize = 25;
+
+        public unsafe static MP4Error Read(ref MP4Context context, ref BByteReader reader, ref JobLogger logger, in ISOBox box)
+        {
+            //Assert.AreEqual(ISOBoxType.MVHD, box.type, "ISOBoxType");
+
+            if (box.size < MinSize)
+            {
+                logger.LogError(context.Tag, $"{MP4Error.InvalidBoxSize}: {box.type} minimum size is {MinSize} but was {box.size}");
+                return MP4Error.InvalidBoxSize;
+            }
+
+            ref var audio = ref context.LastAudio;
+
+            if (audio.Samplerate != 0)
+            {
+                logger.LogError(context.Tag, $"{MP4Error.DuplicateBox}: Duplicate {box.type} box detected");
+                return MP4Error.DuplicateBox;
+            }
+
+            reader.Seek(4); // version + flags
+
+            var bitReader = new BBitReader(reader.GetUnsafePtr(), (int)box.size - 12);
+
+            ReaderError err;
+            if ((err = bitReader.TryReadBits(5, out var audioObjectType)) != ReaderError.None)
+                return (MP4Error)err;
+
+            if (audioObjectType == 31)
+            {
+                if ((err = bitReader.TryReadBits(6, out var audioObjectTypeExt)) != ReaderError.None)
+                    return (MP4Error)err;
+
+                //audioObjectType = 32 + audioObjectTypeExt;
+            }
+
+            if ((err = bitReader.TryReadBits(4, out var samplingFrequencyIndex)) != ReaderError.None)
+                return (MP4Error)err;
+
+            if (samplingFrequencyIndex != 15)
+            {
+                audio.Samplerate = samplingFrequencyIndex switch
+                {
+                    0 => 96000,
+                    1 => 88200,
+                    2 => 64000,
+                    3 => 48000,
+                    4 => 44100,
+                    5 => 32000,
+                    6 => 24000,
+                    7 => 22050,
+                    8 => 16000,
+                    9 => 12000,
+                    10 => 11025,
+                    11 => 8000,
+                    12 => 7350,
+                    _ => 0
+                };
+            }
+            else
+            {
+                if ((err = bitReader.TryReadBits(4, out var samplerate)) != ReaderError.None)
+                    return (MP4Error)err;
+
+                audio.Samplerate = (int)samplerate;
+            }
+
+            if ((err = bitReader.TryReadBits(4, out var channelConfiguration)) != ReaderError.None)
+                return (MP4Error)err;
+
+            audio.ChannelCount = (int)channelConfiguration;
+
+            reader.Seek((int)box.size - HeaderSize);
+            return MP4Error.None;
+        }
+    }
+
+    /// <summary>
     /// AVCDecoderConfigurationRecord ISO/IEC 14496-15:2010(E)
     /// </summary>
     public static class AVCCBox
@@ -143,7 +220,7 @@ namespace MediaFramework.LowLevel.MP4
 
         public static MP4Error Read(ref MP4Context context, ref BByteReader reader, ref JobLogger logger, in ISOBox box)
         {
-            Assert.AreEqual(ISOBoxType.AVCC, box.type, "ISOBoxType");
+            // //Assert.AreEqual(ISOBoxType.AVCC, box.type, "ISOBoxType");
 
             if (box.size < MinSize)
             {
@@ -151,81 +228,81 @@ namespace MediaFramework.LowLevel.MP4
                 return MP4Error.InvalidBoxSize;
             }
 
-            ref var video = ref context.LastVideo;
+            //ref var video = ref context.LastVideo;
 
-            if (video.Profile.Type != 0)
-            {
-                logger.LogError(context.GetTag(2), $"{MP4Error.DuplicateBox}: Duplicate {box.type} box detected");
-                return MP4Error.DuplicateBox;
-            }
+            //if (video.Profile.Type != 0)
+            //{
+            //    logger.LogError(context.GetTag(2), $"{MP4Error.DuplicateBox}: Duplicate {box.type} box detected");
+            //    return MP4Error.DuplicateBox;
+            //}
 
-            video.CodecID = VideoCodec.H264;
+            //video.CodecID = VideoCodec.H264;
 
-            reader.Seek(1); // configurationVersion
-            video.Profile.Type = reader.ReadUInt8();
-            video.Profile.Constraints = reader.ReadUInt8();
-            video.Profile.Level = reader.ReadUInt8();
-            reader.Seek(1); // lengthSizeMinusOne
+            //reader.Seek(1); // configurationVersion
+            //video.Profile.Type = reader.ReadUInt8();
+            //video.Profile.Constraints = reader.ReadUInt8();
+            //video.Profile.Level = reader.ReadUInt8();
+            //reader.Seek(1); // lengthSizeMinusOne
 
-            video.SPS.Offset = reader.Index;
-            int numSPS = reader.ReadUInt8() & 0b00011111;
-            int remains = (int)box.size - MinSize;
-            for (int i = 0; i < numSPS; i++)
-            {
-                if (remains < 2)
-                {
-                    logger.LogError(context.GetTag(3), $"{MP4Error.InvalidBoxSize}: {box.type} size was too small to read SPS length");
-                    return MP4Error.InvalidBoxSize;
-                }
-                remains -= 2;
+            //video.SPS.Offset = reader.Index;
+            //int numSPS = reader.ReadUInt8() & 0b00011111;
+            //int remains = (int)box.size - MinSize;
+            //for (int i = 0; i < numSPS; i++)
+            //{
+            //    if (remains < 2)
+            //    {
+            //        logger.LogError(context.GetTag(3), $"{MP4Error.InvalidBoxSize}: {box.type} size was too small to read SPS length");
+            //        return MP4Error.InvalidBoxSize;
+            //    }
+            //    remains -= 2;
 
-                int spsLength = reader.ReadUInt16();
+            //    int spsLength = reader.ReadUInt16();
 
-                if (remains < spsLength)
-                {
-                    logger.LogError(context.GetTag(4), $"{MP4Error.InvalidBoxSize}: {box.type} size was too small to read SPS");
-                    return MP4Error.InvalidBoxSize;
-                }
-                remains -= spsLength;
+            //    if (remains < spsLength)
+            //    {
+            //        logger.LogError(context.GetTag(4), $"{MP4Error.InvalidBoxSize}: {box.type} size was too small to read SPS");
+            //        return MP4Error.InvalidBoxSize;
+            //    }
+            //    remains -= spsLength;
 
-                reader.Seek(spsLength);
-            }
-            video.SPS.Length = reader.Index - video.SPS.Offset;
+            //    reader.Seek(spsLength);
+            //}
+            //video.SPS.Length = reader.Index - video.SPS.Offset;
 
-            if (remains < 1)
-            {
-                logger.LogError(context.GetTag(5), $"{MP4Error.InvalidBoxSize}: {box.type} size was too small to read the number of PPS");
-                return MP4Error.InvalidBoxSize;
-            }
-            remains -= 1;
+            //if (remains < 1)
+            //{
+            //    logger.LogError(context.GetTag(5), $"{MP4Error.InvalidBoxSize}: {box.type} size was too small to read the number of PPS");
+            //    return MP4Error.InvalidBoxSize;
+            //}
+            //remains -= 1;
 
-            video.PPS.Offset = reader.Index;
-            int numPPS = reader.ReadUInt8();
-            for (int i = 0; i < numPPS; i++)
-            {
-                if (remains < 2)
-                {
-                    logger.LogError(context.GetTag(6), $"{MP4Error.InvalidBoxSize}: {box.type} size was too small to read PPS length");
-                    return MP4Error.InvalidBoxSize;
-                }
-                remains -= 2;
+            //video.PPS.Offset = reader.Index;
+            //int numPPS = reader.ReadUInt8();
+            //for (int i = 0; i < numPPS; i++)
+            //{
+            //    if (remains < 2)
+            //    {
+            //        logger.LogError(context.GetTag(6), $"{MP4Error.InvalidBoxSize}: {box.type} size was too small to read PPS length");
+            //        return MP4Error.InvalidBoxSize;
+            //    }
+            //    remains -= 2;
 
-                int ppsLength = reader.ReadUInt16();
+            //    int ppsLength = reader.ReadUInt16();
 
-                if (remains < ppsLength)
-                {
-                    logger.LogError(context.GetTag(7), $"{MP4Error.InvalidBoxSize}: {box.type} size was too small to read PPS");
-                    return MP4Error.InvalidBoxSize;
-                }
-                remains -= ppsLength;
+            //    if (remains < ppsLength)
+            //    {
+            //        logger.LogError(context.GetTag(7), $"{MP4Error.InvalidBoxSize}: {box.type} size was too small to read PPS");
+            //        return MP4Error.InvalidBoxSize;
+            //    }
+            //    remains -= ppsLength;
 
-                reader.Seek(ppsLength);
-            }
-            video.PPS.Length = reader.Index - video.PPS.Offset;
+            //    reader.Seek(ppsLength);
+            //}
+            //video.PPS.Length = reader.Index - video.PPS.Offset;
 
             // The standard mention we can have the chroma subsampling and the bit depth here.
             // But unfortunetly, it seems to inconsistent so I prefer to read the SPS if needed.
-            reader.Seek(remains);
+            reader.Seek((int)box.size - ISOBox.ByteNeeded);
 
             return MP4Error.None;
         }
@@ -238,7 +315,7 @@ namespace MediaFramework.LowLevel.MP4
 
         public static MP4Error Read(ref MP4Context context, ref BByteReader reader, ref JobLogger logger, in ISOBox box)
         {
-            Assert.AreEqual(ISOBoxType.MVHD, box.type, "ISOBoxType");
+            //Assert.AreEqual(ISOBoxType.MVHD, box.type, "ISOBoxType");
 
             if (box.size < Version0)
             {
@@ -264,8 +341,8 @@ namespace MediaFramework.LowLevel.MP4
                         return MP4Error.InvalidBoxSize;
                     }
 
-                    reader.Seek(4); // creation_time
-                    reader.Seek(4); // modification_time
+                    context.CreationTime = reader.ReadUInt32();
+                    context.ModificationTime = reader.ReadUInt32();
                     context.Timescale = reader.ReadUInt32();
                     context.Duration = reader.ReadUInt32();
                     break;
@@ -276,8 +353,8 @@ namespace MediaFramework.LowLevel.MP4
                         return MP4Error.InvalidBoxSize;
                     }
 
-                    reader.Seek(8); // creation_time
-                    reader.Seek(8); // modification_time
+                    context.CreationTime = reader.ReadUInt64();
+                    context.ModificationTime = reader.ReadUInt64();
                     context.Timescale = reader.ReadUInt32();
                     context.Duration = reader.ReadUInt64();
                     break;
@@ -302,7 +379,7 @@ namespace MediaFramework.LowLevel.MP4
     {
         public static MP4Error Read(ref MP4Context context, ref BByteReader reader, ref JobLogger logger, in ISOBox box)
         {
-            Assert.AreEqual(ISOBoxType.TRAK, box.type, "ISOBoxType");
+            ////Assert.AreEqual(ISOBoxType.TRAK, box.type, "ISOBoxType");
 
             // We wait until we start reading a track so we can minimize
             // the chance of resizing the list during the parsing
@@ -329,7 +406,7 @@ namespace MediaFramework.LowLevel.MP4
 
         public static MP4Error Read(ref MP4Context context, ref BByteReader reader, ref JobLogger logger, in ISOBox box)
         {
-            Assert.AreEqual(ISOBoxType.TKHD, box.type, "ISOBoxType");
+            //Assert.AreEqual(ISOBoxType.TKHD, box.type, "ISOBoxType");
 
             if (box.size < Version0)
             {
@@ -401,7 +478,7 @@ namespace MediaFramework.LowLevel.MP4
 
         public static MP4Error Read(ref MP4Context context, ref BByteReader reader, ref JobLogger logger, in ISOBox box)
         {
-            Assert.AreEqual(ISOBoxType.MDHD, box.type, "ISOBoxType");
+            //Assert.AreEqual(ISOBoxType.MDHD, box.type, "ISOBoxType");
 
             if (box.size < Version0)
             {
@@ -464,7 +541,7 @@ namespace MediaFramework.LowLevel.MP4
 
         public static MP4Error Read(ref MP4Context context, ref BByteReader reader, ref JobLogger logger, in ISOBox box)
         {
-            Assert.AreEqual(ISOBoxType.HDLR, box.type, "ISOBoxType");
+            //Assert.AreEqual(ISOBoxType.HDLR, box.type, "ISOBoxType");
 
             if (box.size < MinSize)
             {
@@ -498,7 +575,7 @@ namespace MediaFramework.LowLevel.MP4
 
         public static MP4Error Read(ref MP4Context context, ref BByteReader reader, ref JobLogger logger, in ISOBox box)
         {
-            Assert.AreEqual(ISOBoxType.STSD, box.type, "ISOBoxType");
+            //Assert.AreEqual(ISOBoxType.STSD, box.type, "ISOBoxType");
 
             if (box.size < MinSize)
             {
@@ -528,28 +605,18 @@ namespace MediaFramework.LowLevel.MP4
                     {
                         context.VideoList.Add(new MP4VideoDescription());
 
-                        var isoBox = reader.ReadISOBox();
                         var start = reader.Index;
-
+                        var isoBox = reader.ReadISOBox();
                         error = VisualSampleEntry.Read(ref context, ref reader, ref logger, isoBox);
                         if (error != MP4Error.None)
                             return error;
 
-                        // We simulate a box so we can decode the remaining boxes
-                        isoBox.type = box.type;
-                        isoBox.size -= (uint)(reader.Index - start);
-                        error = ISOBMFF.Read(ref context, ref reader, ref logger, isoBox);
-                        if (error != MP4Error.None)
-                            return error;
-
-                        if (context.LastVideo.Profile.Type == 0)
-                        {
-                            logger.LogError(context.Tag, $"{MP4Error.MissingBox}: Codec box was missing in {box.type}");
-                            return MP4Error.MissingBox;
-                        }
+                        context.LastVideo.Extra 
+                            = reader.SeekArray((int)isoBox.size - (reader.Index - start));
                     }
                     break;
                 case ISOHandler.SOUN:
+                    reader.Seek((int)box.size - 16);
                     break;
                 default:
                     break;
@@ -567,7 +634,7 @@ namespace MediaFramework.LowLevel.MP4
 
         public static MP4Error Read(ref MP4Context context, ref BByteReader reader, ref JobLogger logger, in ISOBox box)
         {
-            Assert.AreEqual(ISOBoxType.STTS, box.type, "ISOBoxType");
+            //Assert.AreEqual(ISOBoxType.STTS, box.type, "ISOBoxType");
 
             if (box.size < MinSize)
             {
@@ -613,7 +680,7 @@ namespace MediaFramework.LowLevel.MP4
 
         public static MP4Error Read(ref MP4Context context, ref BByteReader reader, ref JobLogger logger, in ISOBox box)
         {
-            Assert.AreEqual(ISOBoxType.STSC, box.type, "ISOBoxType");
+            //Assert.AreEqual(ISOBoxType.STSC, box.type, "ISOBoxType");
 
             if (box.size < MinSize)
             {
@@ -659,7 +726,7 @@ namespace MediaFramework.LowLevel.MP4
 
         public static MP4Error Read(ref MP4Context context, ref BByteReader reader, ref JobLogger logger, in ISOBox box)
         {
-            Assert.AreEqual(ISOBoxType.STCO, box.type, "ISOBoxType");
+            //Assert.AreEqual(ISOBoxType.STCO, box.type, "ISOBoxType");
 
             if (box.size < MinSize)
             {
