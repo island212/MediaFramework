@@ -1,5 +1,6 @@
 using MediaFramework.LowLevel.MP4;
 using System;
+using System.Collections.Generic;
 using System.Diagnostics;
 using System.Runtime.CompilerServices;
 using Unity.Collections;
@@ -48,23 +49,16 @@ namespace MediaFramework.LowLevel.Unsafe
 
             m_Length = length;
             m_Allocator = allocator;
+
+            CheckForValidAllocator();
         }
 
         public BByteReader(NativeList<byte> list, Allocator allocator)
-        {
-            m_Buffer = m_Head = (byte*)list.GetUnsafeReadOnlyPtr();
-
-            m_Length = list.Length;
-            m_Allocator = allocator;
-        }
+            : this(list.GetUnsafeReadOnlyPtr(), list.Length, allocator) { }
 
         public BByteReader(int length, Allocator allocator)
-        {
-            m_Buffer = m_Head = (byte*)UnsafeUtility.Malloc(length, 4, allocator);
+            : this(UnsafeUtility.Malloc(length, 4, allocator), length, allocator) { }
 
-            m_Length = length;
-            m_Allocator = allocator;
-        }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public byte ReadUInt8()
@@ -179,6 +173,13 @@ namespace MediaFramework.LowLevel.Unsafe
 
             if (index < 0 || index > Length)
                 throw new System.ArgumentOutOfRangeException();
+        }
+
+        [Conditional("ENABLE_UNITY_COLLECTIONS_CHECKS")]
+        private void CheckForValidAllocator()
+        {
+            if (m_Allocator == Allocator.Invalid)
+                throw new System.ArgumentOutOfRangeException($"Invalid allocator {m_Allocator}");
         }
 
         [Conditional("ENABLE_UNITY_COLLECTIONS_CHECKS")]

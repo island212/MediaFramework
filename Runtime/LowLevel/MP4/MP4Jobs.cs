@@ -76,6 +76,8 @@ namespace MediaFramework.LowLevel.MP4
     {
         None,
         FileNotFound,
+        InvalidFileStatus,
+        InvalidHandle,
         InvalidBoxType,
         InvalidBoxSize,
         InvalidBoxVersion,

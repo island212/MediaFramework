@@ -3,8 +3,6 @@ using MediaFramework.LowLevel.MP4;
 using MediaFramework.LowLevel.Unsafe;
 using NUnit.Framework;
 using Unity.Collections;
-using Unity.Collections.LowLevel.Unsafe;
-using UnityEngine.TestTools;
 
 namespace MP4.Boxes
 {
@@ -42,18 +40,18 @@ namespace MP4.Boxes
 
         protected void PrintLog()
         {
-            foreach (var log in logger)
+            for (int i = 0; i < logger.Length; i++)
             {
-                switch (log.type)
+                switch (logger.LogTypeAt(i))
                 {
-                    case JobLogType.Log:
-                        UnityEngine.Debug.Log($"{log.tag} - {log.message}");
+                    case UnityEngine.LogType.Log:
+                        UnityEngine.Debug.Log($"{logger.LogTagAt(i)} - {logger.MessageAt(i)}");
                         break;
-                    case JobLogType.Warning:
-                        UnityEngine.Debug.LogWarning($"{log.tag} - {log.message}");
+                    case UnityEngine.LogType.Warning:
+                        UnityEngine.Debug.LogWarning($"{logger.LogTagAt(i)} - {logger.MessageAt(i)}");
                         break;
-                    case JobLogType.Error:
-                        UnityEngine.Debug.LogError($"{log.tag} - {log.message}");
+                    case UnityEngine.LogType.Error:
+                        UnityEngine.Debug.LogError($"{logger.LogTagAt(i)} - {logger.MessageAt(i)}");
                         break;
                 }
             }
