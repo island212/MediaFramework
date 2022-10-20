@@ -31,8 +31,13 @@ namespace MP4.Boxes
 
                 ref var track = ref context.LastTrack;
 
-                Assert.AreEqual(1, track.STTS.EntryCount, "EntryCount");
-                Assert.AreEqual(16, track.STTS.SampleIndex, "SampleIndex");
+                Assert.AreEqual(sttsSmallSampleCounts.Length, track.STTS.Length, "STTS.Length");
+                for (int i = 0; i < track.STTS.Length; i++)
+                {
+                    Assert.AreEqual(sttsSmallSampleCounts[i], track.STTS.Ptr[i].count, $"STTS.Ptr[{i}].count");
+                    Assert.AreEqual(sttsSmallSampleDelta[i], track.STTS.Ptr[i].delta, $"STTS.Ptr[{i}].delta");
+                }
+
                 Assert.AreEqual(0, reader.Remains, "Remains");
             }
         }
@@ -43,7 +48,8 @@ namespace MP4.Boxes
             fixed (byte* ptr = sttsSmallVideo)
             {
                 ref var track = ref context.LastTrack;
-                track.STTS.EntryCount = 1;
+
+                track.STTS.Length = 1;
 
                 var reader = new BByteReader(ptr, sttsSmallVideo.Length, Allocator.None);
 
@@ -117,5 +123,8 @@ namespace MP4.Boxes
 	        0x00, 0x00, 0x00, 0x18, 0x73, 0x74, 0x74, 0x73, 0x00, 0x00, 0x00, 0x00,
             0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0xA6, 0x00, 0x00, 0x0B, 0xB8
         };
+
+        static readonly uint[] sttsSmallSampleCounts = { 166 };
+        static readonly uint[] sttsSmallSampleDelta = { 3000 };
     }
 }

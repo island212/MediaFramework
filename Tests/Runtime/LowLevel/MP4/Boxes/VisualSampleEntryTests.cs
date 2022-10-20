@@ -21,7 +21,7 @@ namespace MP4.Boxes
             fixed (byte* ptr = smallVisual)
             {
                 context.LastTrack.Handler = ISOHandler.VIDE;
-                context.VideoList.Add(new MP4VideoDescription());
+                context.TrackList.Add(new MP4TrackContext());
 
                 var reader = new BByteReader(ptr, smallVisual.Length, Allocator.None);
 
@@ -33,14 +33,14 @@ namespace MP4.Boxes
                 Assert.AreEqual(MP4Error.None, error, "Error");
                 Assert.AreEqual(0, logger.Length, "Logger.Length");
 
-                ref var video = ref context.LastVideo;
+                ref var track = ref context.LastTrack;
 
-                Assert.AreEqual(1, video.ReferenceIndex, "ReferenceIndex");
-                Assert.AreEqual(0x61766331u, video.CodecTag, "CodecTag");
+                Assert.AreEqual(1, track.ReferenceIndex, "ReferenceIndex");
+                Assert.AreEqual(0x61766331u, track.CodecTag, "CodecTag");
 
-                Assert.AreEqual(560, video.Width, "Width");
-                Assert.AreEqual(320, video.Height, "Height");
-                Assert.AreEqual(24, video.Depth, "Depth");
+                Assert.AreEqual(560, track.Width, "Width");
+                Assert.AreEqual(320, track.Height, "Height");
+                Assert.AreEqual(24, track.Depth, "Depth");
 
                 Assert.AreEqual(0, reader.Remains, "Remains");
             }

@@ -4,6 +4,8 @@ using System.Diagnostics;
 using System.Runtime.CompilerServices;
 using Unity.Collections;
 using Unity.Collections.LowLevel.Unsafe;
+using Unity.Entities.UniversalDelegates;
+using UnityEngine.UIElements;
 
 namespace MediaFramework.LowLevel.MP4
 {
@@ -35,7 +37,7 @@ namespace MediaFramework.LowLevel.MP4
 
         public static MP4Error Read(ref MP4Context context, ref BByteReader reader, ref JobLogger logger, in ISOBox box)
         {
-            if (context.BoxDepth > MaxBoxDepth) 
+            if (context.BoxDepth > MaxBoxDepth)
             {
                 logger.LogError(context.Tag, $"{MP4Error.IllegalBoxDepth}: Box chain is nested too depth >{MaxBoxDepth}");
                 return MP4Error.IllegalBoxDepth;
@@ -46,7 +48,7 @@ namespace MediaFramework.LowLevel.MP4
             context.BoxDepth++;
 
             int lastBytePosition = (int)box.size + reader.Index - ISOBox.ByteNeeded;
-            if (lastBytePosition > reader.Length) 
+            if (lastBytePosition > reader.Length)
             {
                 logger.LogError(context.Tag, $"{MP4Error.IndexOutOfReaderRange}: {box.type} ({box.size}) is greater than reader length");
                 return MP4Error.IndexOutOfReaderRange;
@@ -79,8 +81,8 @@ namespace MediaFramework.LowLevel.MP4
                     case ISOBoxType.STTS: error = STTSBox.Read(ref context, ref reader, ref logger, isoBox); break;
                     case ISOBoxType.STSC: error = STSCBox.Read(ref context, ref reader, ref logger, isoBox); break;
                     case ISOBoxType.STCO: error = STCOBox.Read(ref context, ref reader, ref logger, isoBox); break;
-                    default: 
-                        reader.Seek((int)isoBox.size - ISOBox.ByteNeeded); 
+                    default:
+                        reader.Seek((int)isoBox.size - ISOBox.ByteNeeded);
                         break;
                 }
 
@@ -108,20 +110,20 @@ namespace MediaFramework.LowLevel.MP4
                 return MP4Error.InvalidBoxSize;
             }
 
-            ref var video = ref context.VideoList.ElementAt(context.VideoList.Length - 1);
+            ref var track = ref context.LastTrack;
 
-            video.CodecTag = (uint)box.type;
+            track.CodecTag = (uint)box.type;
             reader.Seek(6);
-            video.ReferenceIndex = reader.ReadUInt16();
+            track.ReferenceIndex = reader.ReadUInt16();
             reader.Seek(4 * 4); // pre_defined[4]
-            video.Width = reader.ReadUInt16();
-            video.Height = reader.ReadUInt16();
+            track.Width = reader.ReadUInt16();
+            track.Height = reader.ReadUInt16();
             reader.Seek(4); // horizresolution
             reader.Seek(4); // vertresolution
             reader.Seek(4); // reserved
             reader.Seek(2); // frame_count
             reader.Seek(32); // compressorname
-            video.Depth = reader.ReadUInt16();
+            track.Depth = reader.ReadUInt16();
             reader.Seek(2); // pre_defined
 
             return MP4Error.None;
@@ -146,13 +148,7 @@ namespace MediaFramework.LowLevel.MP4
                 return MP4Error.InvalidBoxSize;
             }
 
-            ref var audio = ref context.LastAudio;
-
-            if (audio.Samplerate != 0)
-            {
-                logger.LogError(context.Tag, $"{MP4Error.DuplicateBox}: Duplicate {box.type} box detected");
-                return MP4Error.DuplicateBox;
-            }
+            ref var track = ref context.LastTrack;
 
             reader.Seek(4); // version + flags
 
@@ -173,38 +169,44 @@ namespace MediaFramework.LowLevel.MP4
             if ((err = bitReader.TryReadBits(4, out var samplingFrequencyIndex)) != ReaderError.None)
                 return (MP4Error)err;
 
-            if (samplingFrequencyIndex != 15)
+            var sampleRate = samplingFrequencyIndex switch
             {
-                audio.Samplerate = samplingFrequencyIndex switch
-                {
-                    0 => 96000,
-                    1 => 88200,
-                    2 => 64000,
-                    3 => 48000,
-                    4 => 44100,
-                    5 => 32000,
-                    6 => 24000,
-                    7 => 22050,
-                    8 => 16000,
-                    9 => 12000,
-                    10 => 11025,
-                    11 => 8000,
-                    12 => 7350,
-                    _ => 0
-                };
-            }
-            else
+                0 => 96000,
+                1 => 88200,
+                2 => 64000,
+                3 => 48000,
+                4 => 44100,
+                5 => 32000,
+                6 => 24000,
+                7 => 22050,
+                8 => 16000,
+                9 => 12000,
+                10 => 11025,
+                11 => 8000,
+                12 => 7350,
+                _ => 0
+            };
+
+            if (samplingFrequencyIndex == 15)
             {
-                if ((err = bitReader.TryReadBits(4, out var samplerate)) != ReaderError.None)
+                if ((err = bitReader.TryReadBits(4, out var extSamplerate)) != ReaderError.None)
                     return (MP4Error)err;
 
-                audio.Samplerate = (int)samplerate;
+                sampleRate = (int)extSamplerate;
             }
+
+            if (sampleRate > 0 && track.SampleRate > 0 && track.SampleRate != sampleRate)
+                logger.Log(context.Tag, $"Audio sample rate changed to {sampleRate} and was {track.SampleRate}");
+
+            track.SampleRate = sampleRate;
 
             if ((err = bitReader.TryReadBits(4, out var channelConfiguration)) != ReaderError.None)
                 return (MP4Error)err;
 
-            audio.ChannelCount = (int)channelConfiguration;
+            if (channelConfiguration > 0 && track.ChannelCount > 0 && track.ChannelCount != channelConfiguration)
+                logger.Log(context.Tag, $"Audio channel count changed to {channelConfiguration} and was {track.ChannelCount}");
+
+            track.ChannelCount = (int)channelConfiguration;
 
             reader.Seek((int)box.size - HeaderSize);
             return MP4Error.None;
@@ -224,7 +226,7 @@ namespace MediaFramework.LowLevel.MP4
 
             if (box.size < MinSize)
             {
-                logger.LogError(context.GetTag(1), $"{MP4Error.InvalidBoxSize}: {box.type} minimum size is {MinSize} but was {box.size}");
+                logger.LogError(context.Tag + 1, $"{MP4Error.InvalidBoxSize}: {box.type} minimum size is {MinSize} but was {box.size}");
                 return MP4Error.InvalidBoxSize;
             }
 
@@ -396,7 +398,7 @@ namespace MediaFramework.LowLevel.MP4
             ref var track = ref context.LastTrack;
 
             return error;
-        }   
+        }
     }
 
     public static class TKHDBox
@@ -594,24 +596,19 @@ namespace MediaFramework.LowLevel.MP4
                 return MP4Error.InvalidEntryCount;
             }
 
-            track.Descriptions.Offset = context.VideoList.Length;
-            track.Descriptions.Length = (int)entries;
-
             var error = MP4Error.None;
             switch (track.Handler)
             {
                 case ISOHandler.VIDE:
                     for (int i = 0; i < entries; i++)
                     {
-                        context.VideoList.Add(new MP4VideoDescription());
-
                         var start = reader.Index;
                         var isoBox = reader.ReadISOBox();
                         error = VisualSampleEntry.Read(ref context, ref reader, ref logger, isoBox);
                         if (error != MP4Error.None)
                             return error;
 
-                        context.LastVideo.Extra 
+                        track.STSDExtra
                             = reader.SeekArray((int)isoBox.size - (reader.Index - start));
                     }
                     break;
@@ -650,7 +647,7 @@ namespace MediaFramework.LowLevel.MP4
 
             ref var track = ref context.LastTrack;
 
-            if (track.STTS.EntryCount != 0)
+            if (track.STTS.Length != 0)
             {
                 logger.LogError(context.Tag, $"{MP4Error.DuplicateBox}: Duplicate {box.type} box detected");
                 return MP4Error.DuplicateBox;
@@ -658,16 +655,27 @@ namespace MediaFramework.LowLevel.MP4
 
             reader.Seek(4); // version + flags
 
-            track.STTS.EntryCount = (int)reader.ReadUInt32();
-            if ((box.size - HeaderSize) / SampleSize != track.STTS.EntryCount)
+            var length = (int)reader.ReadUInt32();
+            if ((box.size - HeaderSize) / SampleSize != length)
             {
-                logger.LogError(context.Tag, $"{MP4Error.InvalidEntryCount}: {box.type} read {track.STTS.EntryCount} entries but was {(box.size - HeaderSize) / SampleSize}");
+                logger.LogError(context.Tag, $"{MP4Error.InvalidEntryCount}: {box.type} read {length} entries but was {(box.size - HeaderSize) / SampleSize}");
                 return MP4Error.InvalidEntryCount;
             }
 
-            track.STTS.SampleIndex = reader.Index;
+            unsafe
+            {
+                track.STTS = new SampleArray<TimeSample>(length, context.Allocator);
+                for (int i = 0; i < length; i++)
+                {
+                    // TODO: Validate the data
+                    track.STTS.Ptr[i] = new TimeSample
+                    {
+                        count = reader.ReadUInt32(),
+                        delta = reader.ReadUInt32()
+                    };
+                }
+            }
 
-            reader.Seek((int)box.size - HeaderSize);
             return MP4Error.None;
         }
     }
@@ -696,7 +704,7 @@ namespace MediaFramework.LowLevel.MP4
 
             ref var track = ref context.LastTrack;
 
-            if (track.STSC.EntryCount != 0)
+            if (track.STSC.Length != 0)
             {
                 logger.LogError(context.Tag, $"{MP4Error.DuplicateBox}: Duplicate {box.type} box detected");
                 return MP4Error.DuplicateBox;
@@ -704,16 +712,27 @@ namespace MediaFramework.LowLevel.MP4
 
             reader.Seek(4); // version + flags
 
-            track.STSC.EntryCount = (int)reader.ReadUInt32();
-            if ((box.size - HeaderSize) / SampleSize != track.STSC.EntryCount)
+            var length = (int)reader.ReadUInt32();
+            if ((box.size - HeaderSize) / SampleSize != length)
             {
-                logger.LogError(context.Tag, $"{MP4Error.InvalidEntryCount}: {box.type} read {track.STSC.EntryCount} entries but was {(box.size - HeaderSize) / SampleSize}");
+                logger.LogError(context.Tag, $"{MP4Error.InvalidEntryCount}: {box.type} read {length} entries but was {(box.size - HeaderSize) / SampleSize}");
                 return MP4Error.InvalidEntryCount;
             }
 
-            track.STSC.SampleIndex = reader.Index;
-
-            reader.Seek((int)box.size - HeaderSize);
+            unsafe
+            {
+                track.STSC = new SampleArray<SampleChunk>(length, context.Allocator);
+                for (int i = 0; i < length; i++)
+                {
+                    // TODO: Validate the data
+                    track.STSC.Ptr[i] = new SampleChunk
+                    {
+                        firstChunk = reader.ReadUInt32(),
+                        samplesPerChunk = reader.ReadUInt32(),
+                        sampleDescriptionIndex = reader.ReadUInt32()
+                    };
+                }
+            }
             return MP4Error.None;
         }
     }
@@ -742,7 +761,7 @@ namespace MediaFramework.LowLevel.MP4
 
             ref var track = ref context.LastTrack;
 
-            if (track.STCO.EntryCount != 0)
+            if (track.STCO.Length != 0)
             {
                 logger.LogError(context.Tag, $"{MP4Error.DuplicateBox}: Duplicate {box.type} box detected");
                 return MP4Error.DuplicateBox;
@@ -750,16 +769,26 @@ namespace MediaFramework.LowLevel.MP4
 
             reader.Seek(4); // version + flags
 
-            track.STCO.EntryCount = (int)reader.ReadUInt32();
-            if ((box.size - HeaderSize) / SampleSize != track.STCO.EntryCount)
+            var length = (int)reader.ReadUInt32();
+            if ((box.size - HeaderSize) / SampleSize != length)
             {
-                logger.LogError(context.Tag, $"{MP4Error.InvalidEntryCount}: {box.type} read {track.STCO.EntryCount} entries but was {(box.size - HeaderSize) / SampleSize}");
+                logger.LogError(context.Tag, $"{MP4Error.InvalidEntryCount}: {box.type} read {length} entries but was {(box.size - HeaderSize) / SampleSize}");
                 return MP4Error.InvalidEntryCount;
             }
 
-            track.STCO.SampleIndex = reader.Index;
+            unsafe
+            {
+                track.STCO = new SampleArray<ChunkOffset>(length, context.Allocator);
+                for (int i = 0; i < length; i++)
+                {
+                    // TODO: Validate the data
+                    track.STCO.Ptr[i] = new ChunkOffset
+                    {
+                        value = reader.ReadUInt32()
+                    };
+                }
+            }
 
-            reader.Seek((int)box.size - HeaderSize);
             return MP4Error.None;
         }
     }
@@ -791,7 +820,7 @@ namespace MediaFramework.LowLevel.MP4
         [Conditional("ENABLE_UNITY_COLLECTIONS_CHECKS")]
         public static void CheckIfReaderRead(int index, in BByteReader reader, in ISOBox box)
         {
-            if(index >= reader.Index)
+            if (index >= reader.Index)
                 throw new InvalidOperationException($"Infinite loop detected. The reader didn't progress when reading {box.type} box");
         }
     }

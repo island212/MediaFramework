@@ -34,15 +34,10 @@ namespace MP4.Boxes
 
                 ref var track = ref context.LastTrack;
 
-                Assert.AreEqual(0, track.Descriptions.Offset, "Offset");
-                Assert.AreEqual(1, track.Descriptions.Length, "Length");
+                Assert.AreEqual(1, track.ReferenceIndex, "ReferenceIndex");
 
-                ref var video = ref context.LastVideo;
-
-                Assert.AreEqual(1, video.ReferenceIndex, "ReferenceIndex");
-
-                Assert.AreEqual(VideoCodec.H264, video.CodecID, "CodecID");
-                Assert.AreEqual(0x61766331u, video.CodecTag, "CodecTag");
+                Assert.AreEqual(MediaCodec.H264, track.Codec, "CodecID");
+                Assert.AreEqual(0x61766331u, track.CodecTag, "CodecTag");
 
                 //Assert.AreEqual(66, video.Profile.Type, "Type");
                 //Assert.AreEqual(192, video.Profile.Constraints, "Constraints");
@@ -58,8 +53,8 @@ namespace MP4.Boxes
                 //Assert.AreEqual(145, video.PPS.Offset, "PPS.Offset");
                 //Assert.AreEqual(8, video.PPS.Length, "PPS.Length");
 
-                Assert.AreEqual(102, video.Extra.Offset, "Extra.Offset");
-                Assert.AreEqual(69, video.Extra.Length, "Extra.Length");
+                Assert.AreEqual(102, track.STSDExtra.Offset, "Extra.Offset");
+                Assert.AreEqual(69, track.STSDExtra.Length, "Extra.Length");
 
                 Assert.AreEqual(0, reader.Remains, "Remains");
             }

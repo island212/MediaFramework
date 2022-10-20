@@ -30,6 +30,7 @@ namespace MP4.Boxes
                 Assert.AreEqual(90000, context.Timescale, "TimeScale");
                 Assert.AreEqual(501120, context.Duration, "Duration");
                 Assert.AreEqual(3, context.NextTrackID, "NextTrackID");
+
                 Assert.AreEqual(0, reader.Remains, "Remains");
             }
         }

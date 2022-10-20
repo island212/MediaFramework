@@ -8,6 +8,7 @@ using System.Threading.Tasks;
 using Unity.Assertions;
 using Unity.Collections;
 using Unity.Collections.LowLevel.Unsafe;
+using Unity.Entities;
 using UnityEngine;
 
 namespace MediaFramework.LowLevel
@@ -21,9 +22,9 @@ namespace MediaFramework.LowLevel
 
         public bool IsCreated => m_LogTypes.IsCreated;
 
-        UnsafeList<int> m_LogTags;
-        UnsafeList<LogType> m_LogTypes;
-        UnsafeList<FixedString128Bytes> m_LogMessages;
+        private UnsafeList<int> m_LogTags;
+        private UnsafeList<LogType> m_LogTypes;
+        private UnsafeList<FixedString128Bytes> m_LogMessages;
 
         public JobLogger(int capacity, Allocator allocator)
         {

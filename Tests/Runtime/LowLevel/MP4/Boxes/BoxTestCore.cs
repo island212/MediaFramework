@@ -22,7 +22,7 @@ namespace MP4.Boxes
         protected virtual void OneTimeTearDown()
         {
             logger.Dispose();
-            context.TrackList.Dispose();
+            context.Dispose();
         }
 
         [SetUp]
@@ -35,7 +35,7 @@ namespace MP4.Boxes
         protected virtual void TearDown()
         {
             logger.Clear();
-            context.Clear();
+            context.Dispose();
         }
 
         protected void PrintLog()

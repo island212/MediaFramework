@@ -50,12 +50,9 @@ namespace MP4.Boxes
                 Assert.AreEqual(ISOLanguage.UND, track1.Language, "track1.MDHD.Language");
                 //Assert.AreEqual(385, track1.STSDIndex, "track1.STSD.Index");
 
-                Assert.AreEqual(1, track1.STTS.EntryCount, "track1.STTS.EntryCount");
-                Assert.AreEqual(572, track1.STTS.SampleIndex, "track1.STTS.SampleIndex");
-                Assert.AreEqual(2, track1.STSC.EntryCount, "track1.STSC.EntryCount");
-                Assert.AreEqual(1280, track1.STSC.SampleIndex, "track1.STSC.SampleIndex");
-                Assert.AreEqual(42, track1.STCO.EntryCount, "track1.STCO.EntryCount");
-                Assert.AreEqual(1320, track1.STCO.SampleIndex, "track1.STCO.SampleIndex");
+                Assert.AreEqual(1, track1.STTS.Length, "STTS.Length");
+                Assert.AreEqual(2, track1.STSC.Length, "STSC.Length");
+                Assert.AreEqual(42, track1.STCO.Length, "STCO.Length");
 
                 ref var track2 = ref context.TrackList.ElementAt(1);
 
@@ -66,12 +63,9 @@ namespace MP4.Boxes
                 Assert.AreEqual(ISOLanguage.ENG, track2.Language, "track2.MDHD.Language");
                 //Assert.AreEqual(1927, track2.STSDIndex, "track2.STSD.Index");
 
-                Assert.AreEqual(1, track2.STTS.EntryCount, "track2.STTS.EntryCount");
-                Assert.AreEqual(2046, track2.STTS.SampleIndex, "track2.STTS.SampleIndex");
-                Assert.AreEqual(2, track2.STSC.EntryCount, "track2.STSC.EntryCount");
-                Assert.AreEqual(3134, track2.STSC.SampleIndex, "track2.STSC.SampleIndex");
-                Assert.AreEqual(38, track2.STCO.EntryCount, "track2.STCO.EntryCount");
-                Assert.AreEqual(3174, track2.STCO.SampleIndex, "track2.STCO.SampleIndex");
+                Assert.AreEqual(1, track2.STTS.Length, "track2.STTS.EntryCount");
+                Assert.AreEqual(2, track2.STSC.Length, "track2.STSC.EntryCount");
+                Assert.AreEqual(38, track2.STCO.Length, "track2.STCO.EntryCount");
 
                 Assert.AreEqual(0, reader.Remains, "Remains");
             }

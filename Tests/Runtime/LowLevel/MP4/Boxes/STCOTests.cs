@@ -25,8 +25,12 @@ namespace MP4.Boxes
 
                 ref var track = ref context.LastTrack;
 
-                Assert.AreEqual(42, track.STCO.EntryCount, "EntryCount");
-                Assert.AreEqual(16, track.STCO.SampleIndex, "SampleIndex");
+                Assert.AreEqual(stcoChunkOffsets.Length, track.STCO.Length, "STCO.Length");
+                for (int i = 0; i < track.STCO.Length; i++)
+                {
+                    Assert.AreEqual(stcoChunkOffsets[i], track.STCO.Ptr[i], $"STCO.Ptr[{i}]");
+                }
+
                 Assert.AreEqual(0, reader.Remains, "Remains");
             }
         }
@@ -37,7 +41,8 @@ namespace MP4.Boxes
             fixed (byte* ptr = stcoSmallVideo)
             {
                 ref var track = ref context.LastTrack;
-                track.STCO.EntryCount = 1;
+
+                track.STCO.Length = 1;
 
                 var reader = new BByteReader(ptr, stcoSmallVideo.Length, Allocator.None);
 
@@ -124,6 +129,14 @@ namespace MP4.Boxes
             0x00, 0x05, 0x0E, 0x3B, 0x00, 0x05, 0x2D, 0xC9, 0x00, 0x05, 0x59, 0xF0,
             0x00, 0x05, 0x7B, 0x82, 0x00, 0x05, 0x95, 0x2B, 0x00, 0x05, 0xB3, 0xDA,
             0x00, 0x05, 0xC6, 0x67
+        };
+
+        static readonly uint[] stcoChunkOffsets = { 
+            168, 29670, 35828, 41992, 46948, 51365, 55256, 58533, 60511, 63583, 
+            66625, 73667, 86405, 99454, 117926, 132032, 146514, 157301, 166428, 
+            177318, 190310, 205569, 220588, 237207, 256612, 271882, 278121, 
+            281855, 287705, 294467, 301211, 306601, 311031, 317332, 322924, 
+            331323, 339401, 350704, 359298, 365867, 373722, 378471 
         };
     }
 }

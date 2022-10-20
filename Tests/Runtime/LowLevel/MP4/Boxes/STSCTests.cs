@@ -24,8 +24,14 @@ namespace MP4.Boxes
 
                 ref var track = ref context.LastTrack;
 
-                Assert.AreEqual(2, track.STSC.EntryCount, "EntryCount");
-                Assert.AreEqual(16, track.STSC.SampleIndex, "SampleIndex");
+                Assert.AreEqual(stscSmallFirstChunk.Length, track.STSC.Length, "STSC.Length");
+                for (int i = 0; i < track.STSC.Length; i++)
+                {
+                    Assert.AreEqual(stscSmallFirstChunk[i], track.STSC.Ptr[i].firstChunk, $"STSC.Ptr[{i}].firstChunk");
+                    Assert.AreEqual(stscSmallSamplePerChunk[i], track.STSC.Ptr[i].samplesPerChunk, $"STSC.Ptr[{i}].samplesPerChunk");
+                    Assert.AreEqual(stscSmallSampleDescriptionIndex[i], track.STSC.Ptr[i].sampleDescriptionIndex, $"STSC.Ptr[{i}].sampleDescriptionIndex");
+                }
+
                 Assert.AreEqual(0, reader.Remains, "Remains");
             }
         }
@@ -36,7 +42,8 @@ namespace MP4.Boxes
             fixed (byte* ptr = stscSmallVideo)
             {
                 ref var track = ref context.LastTrack;
-                track.STSC.EntryCount = 1;
+
+                track.STSC.Length = 1;
 
                 var reader = new BByteReader(ptr, stscSmallVideo.Length, Allocator.None);
 
@@ -112,5 +119,9 @@ namespace MP4.Boxes
             0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x2A, 0x00, 0x00, 0x00, 0x02,
             0x00, 0x00, 0x00, 0x01
         };
+
+        static readonly uint[] stscSmallFirstChunk = { 1, 42 };
+        static readonly uint[] stscSmallSamplePerChunk = { 4, 2 };
+        static readonly uint[] stscSmallSampleDescriptionIndex = { 1, 1 };
     }
 }

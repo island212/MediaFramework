@@ -4,6 +4,12 @@ using Unity.Collections.LowLevel.Unsafe;
 using MediaFramework.LowLevel.Codecs;
 using MediaFramework.LowLevel.Unsafe;
 using System;
+using Unity.Burst;
+using Unity.IO.LowLevel.Unsafe;
+using Unity.Mathematics;
+using Unity.Assertions;
+using System.Runtime.ConstrainedExecution;
+using static PlasticPipe.Server.MonitorStats;
 
 namespace MediaFramework.LowLevel.MP4
 {
@@ -30,48 +36,6 @@ namespace MediaFramework.LowLevel.MP4
         public ulong value;
     }
 
-    //public struct MP4VideoTrack
-    //{
-    //    public uint ID;
-    //    public uint Timescale;
-    //    public ulong Duration;
-    //    public ISOLanguage Language;
-
-    //    public int Width, Heigth;
-
-    //    public int FrameCount;
-
-    //    public BlobArray<TimeSample> TimeToSampleTable;
-    //    public BlobArray<SampleChunk> SampleToChunkTable;
-    //    public BlobArray<ChunkOffset> ChunkOffsetTable;
-    //}
-
-    //public struct MP4AudioTrack
-    //{
-    //    public uint ID;
-    //    public uint Timescale;
-    //    public ulong Duration;
-    //    public ISOLanguage Language;
-
-    //    public int ChannelCount;
-    //    public int SampleRate;
-
-    //    public BlobArray<TimeSample> TimeToSampleTable;
-    //    public BlobArray<SampleChunk> SampleToChunkTable;
-    //    public BlobArray<ChunkOffset> ChunkOffsetTable;
-    //}
-
-    //public struct MP4Header
-    //{
-    //    public ulong Duration;
-    //    public uint Timescale;
-
-    //    public FileBlock DataBlock;
-
-    //    public BlobArray<MP4VideoTrack> Videos;
-    //    public BlobArray<MP4AudioTrack> Audios;
-    //}
-
     public enum MP4Error
     {
         None,
@@ -93,34 +57,24 @@ namespace MediaFramework.LowLevel.MP4
         ConflictingBitDepth
     }
 
-    public enum VideoCodec
+    public enum MediaCodec
     {
-        H264,
-        H265
-    }
+        None = 0,
 
-    public struct MP4VideoDescription
-    {
-        public int ReferenceIndex;
+        // Video Codecs
+        H264 = 0x10000,
+        H265,
 
-        public VideoCodec CodecID;
-        public uint CodecTag;
-
-        public uint Width, Height;
-        public int Depth;
-
-        public ArrayBlock Extra;
-    }
-
-    public struct MP4AudioDescription
-    {
-        public int Samplerate;
-        public int ChannelCount;
+        PCM = 0x20000,
+        AAC
     }
 
     public struct MP4Context : IDisposable
     {
+        public readonly Allocator Allocator;
+
         public int BoxDepth;
+        public FileBlock MOOV, MDAT;
 
         public ISODate CreationTime;
         public ISODate ModificationTime;
@@ -130,56 +84,25 @@ namespace MediaFramework.LowLevel.MP4
         public uint NextTrackID;
 
         public UnsafeList<MP4TrackContext> TrackList;
-        public UnsafeList<MP4VideoDescription> VideoList;
-        public UnsafeList<MP4AudioDescription> AudioList;
+
+        public UnsafeArray RawHeader;
 
         public ref MP4TrackContext LastTrack =>
             ref TrackList.ElementAt(TrackList.Length - 1);
 
-        public ref MP4VideoDescription LastVideo =>
-            ref VideoList.ElementAt(VideoList.Length - 1);
-
-        public ref MP4AudioDescription LastAudio =>
-            ref AudioList.ElementAt(AudioList.Length - 1);
-
-        public int Tag => GetTag(TrackList.Length);
-
-        public int GetTag(int id) => (int)MP4Tag.Parse + TrackList.Length * 100 + id;
+        public int Tag => TrackList.Length * 1000;
 
         public MP4Context(Allocator allocator)
         {
-            BoxDepth = 0;
-
-            CreationTime = 0;
-            ModificationTime = 0;
-
-            Duration = 0;
-            Timescale = 0;
-            NextTrackID = 0;
-
-            TrackList = new UnsafeList<MP4TrackContext>(10, allocator);
-            VideoList = new UnsafeList<MP4VideoDescription>(2, allocator);
-            AudioList = new UnsafeList<MP4AudioDescription>(8, allocator);
-        }
-
-        public void Clear()
-        {
-            BoxDepth = 0;
-
-            Duration = 0;
-            Timescale = 0;
-            NextTrackID = 0;
-
-            TrackList.Clear();
-            VideoList.Clear();
-            AudioList.Clear();
+            this = default;
+            Allocator = allocator;
+            TrackList = new UnsafeList<MP4TrackContext>(8, allocator);
         }
 
         public void Dispose()
         {
             TrackList.Dispose();
-            VideoList.Dispose();
-            AudioList.Dispose();
+            RawHeader.Dispose();
         }
     }
 
@@ -193,18 +116,165 @@ namespace MediaFramework.LowLevel.MP4
         public ulong Duration;
         public ISOLanguage Language;
 
-        public SampleArray STTS;
-        public SampleArray STSC;
-        public SampleArray STCO;
+        public SampleArray<TimeSample> STTS;
+        public SampleArray<SampleChunk> STSC;
+        public SampleArray<ChunkOffset> STCO;
+        // public SampleArray<ChunkOffset64> CO64;
 
-        public ArrayBlock Descriptions;
+        public MediaCodec Codec;
+        public uint CodecTag;
+        public ArrayBlock STSDExtra;
+
+        // Video
+        public uint ReferenceIndex;
+        public uint Width, Height;
+        public int Depth;
+        // Audio
+        public int SampleRate;
+        public int ChannelCount;
     }
 
-    public struct SampleArray
+    public unsafe struct SampleArray<T> where T : unmanaged
     {
-        public int SampleIndex;
-        public int EntryCount;
+        public int Length;
+        public T* Ptr;
+
+        public SampleArray(int length, Allocator allocator)
+        {
+            Length = length;
+            Ptr = (T*)UnsafeUtility.Malloc(UnsafeUtility.SizeOf<T>() * length, 
+                UnsafeUtility.AlignOf<T>(), allocator);
+        }
     }
+
+    [BurstCompile]
+    public struct FindRootBoxJob : IJob
+    {
+        public ReadHandle ReadHandle;
+
+        public UnsafeReference<AVIOContext> IOContext;
+        public UnsafeReference<MP4Context> MP4Header;
+        public UnsafeReference<JobLogger> Logger;
+
+        public unsafe void Execute()
+        {
+            ref var avio = ref IOContext.GetReference();
+            if (avio.Read.Size == 0)
+                return;
+
+            Assert.AreEqual(ReadStatus.Complete, ReadHandle.Status, "Invalid ReadHandle Status");
+
+            ref var mp4 = ref MP4Header.GetReference();
+            ref var logger = ref Logger.GetReference();
+
+            var reader = new BByteReader(avio.Read.Buffer, (int)avio.Read.Size, Allocator.None);
+
+            while (reader.Index + ISOBox.ByteNeeded < reader.Length)
+            {
+                var startOffset = reader.Index;
+
+                var isoBox = reader.ReadISOBox();
+
+                long size;
+                if (isoBox.size >= ISOBox.ByteNeeded)
+                    size = isoBox.size;
+                else if (isoBox.size == 1)
+                    size = (long)reader.ReadUInt64();
+                else if (isoBox.size == 0)
+                    size = avio.FileSize - avio.Read.Offset;
+                else
+                {
+                    logger.LogError((int)MP4Tag.FindRootBox + 1, $"{MP4Error.InvalidBoxSize}: Invalid box size {isoBox.size} for {isoBox.type}");
+                    avio.Read.Size = 0;
+                    return;
+                }
+
+                logger.Trace(0, $"Start:{avio.Read.Offset + reader.Index} < End:{avio.Read.Offset + reader.Length} Type={isoBox.type} Size={size}");
+
+                switch (isoBox.type)
+                {
+                    case ISOBoxType.MOOV:
+                        if (mp4.MOOV.IsValid)
+                        {
+                            logger.LogError((int)MP4Tag.FindRootBox + 2, $"{MP4Error.DuplicateBox}: Duplicate {isoBox.type} box detected");
+                            avio.Read.Size = 0;
+                            return;
+                        }
+
+                        mp4.MOOV.Offset = avio.Read.Offset;
+                        mp4.MOOV.Length = size;
+                        break;
+                    case ISOBoxType.MDAT:
+                        if (mp4.MDAT.IsValid)
+                        {
+                            logger.LogError((int)MP4Tag.FindRootBox + 3, $"{MP4Error.DuplicateBox}: Duplicate {isoBox.type} box detected");
+                            avio.Read.Size = 0;
+                            return;
+                        }
+
+                        mp4.MDAT.Offset = avio.Read.Offset;
+                        mp4.MDAT.Length = size;
+                        break;
+                }
+
+                reader.Index = (int)math.min(size + startOffset, reader.Length);
+                avio.Read.Offset += size;
+            }
+
+            avio.Read.Size = !mp4.MOOV.IsValid || !mp4.MDAT.IsValid
+                ? math.min(avio.ReadBuffer.Length, math.max(avio.FileSize - avio.Read.Offset, 0)) : 0;
+
+            ReadHandle.Dispose();
+        }
+    }
+
+    [BurstCompile]
+    public struct LoadMP4HeaderInMemoryJob : IJob
+    {
+        public UnsafeReference<AVIOContext> IOContext;
+        public UnsafeReference<MP4Context> MP4Header;
+        public UnsafeReference<JobLogger> Logger;
+
+        public void Execute()
+        {
+            ref var mp4 = ref MP4Header.GetReference();
+            ref var logger = ref Logger.GetReference();
+            ref var avio = ref IOContext.GetReference();
+
+            if (logger.Errors > 0 || !mp4.MOOV.IsValid || !mp4.MDAT.IsValid)
+            {
+                avio.Read.Size = 0;
+                return;
+            }
+
+            if (mp4.MOOV.Length > int.MaxValue)
+            {
+                logger.LogError((int)MP4Tag.FindRootBox, $"{MP4Error.OverMaxPolicy}: MP4 header is more than int.MaxValue which is not supported. Size={mp4.MOOV.Length}");
+                avio.Read.Size = 0;
+                return;
+            }
+
+            mp4.RawHeader = new UnsafeArray((int)mp4.MOOV.Length, 4, Allocator.Persistent);
+
+            avio.Read.Offset = mp4.MOOV.Offset;
+            avio.Read.Size = mp4.MOOV.Length;
+            unsafe { avio.Read.Buffer = mp4.RawHeader.Ptr; }
+        }
+    }
+
+    [BurstCompile]
+    public struct ParseMP4Job : IJob
+    {
+        public UnsafeReference<MP4Context> MP4Header;
+        public UnsafeReference<JobLogger> Logger;
+
+        public void Execute()
+        {
+            ref var mp4 = ref MP4Header.GetReference();
+            ref var logger = ref Logger.GetReference();
+        }
+    }
+
 
     //public struct MP4ParseBlobJob : IJob
     //{

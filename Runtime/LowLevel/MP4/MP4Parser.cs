@@ -10,14 +10,17 @@ using System.IO;
 using Unity.Mathematics;
 using UnityEngine.UIElements;
 using System.Net;
+using Unity.Burst;
+using Unity.Entities;
+using static CodiceApp.EventTracking.EventModelSerialization;
 
 namespace MediaFramework.LowLevel.MP4
 {
     public struct FileBlock : IEquatable<FileBlock>
     {
-        public static FileBlock Invalid => new FileBlock(-1, -1);
+        public static FileBlock Invalid => new FileBlock();
 
-        public bool IsValid => Offset >= 0 && Length >= 0;
+        public bool IsValid => Offset >= 0 && Length > 0;
 
         public long Offset;
         public long Length;
@@ -53,113 +56,9 @@ namespace MediaFramework.LowLevel.MP4
         }
     }
 
-    public struct MP4ParseHandle : IDisposable
-    {
-        public NativeReference<JobLogger> Logger;
-        public NativeReference<BByteReader> Reader;
-        //public NativeReference<BlobAssetReference<MP4Header>> Header;
-        public NativeReference<FileBlock> MDAT;
-
-        public MP4ParseHandle(Allocator allocator)
-        {
-            Logger = new NativeReference<JobLogger>(allocator);
-            Reader = new NativeReference<BByteReader>(allocator);
-            //Header = new NativeReference<BlobAssetReference<MP4Header>>(allocator);
-
-            MDAT = new NativeReference<FileBlock>(allocator);
-            MDAT.Value = FileBlock.Invalid;
-        }
-
-        public void Dispose()
-        {
-            Logger.Dispose();
-            Reader.Dispose();
-            //Header.Dispose();
-            MDAT.Dispose();
-        }
-    }
-
-    public struct FindRootBox : IJob
-    {
-        public ReadHandle ReadHandle;
-        public MediaHandle MediaHandle;
-
-        [ReadOnly] public NativeArray<byte> Buffer;
-
-        public unsafe void Execute()
-        {
-            ref var mp4 = ref MP4ParseSystem.AsRef(MediaHandle);
-            if (mp4.Read.Size == 0)
-                return;
-
-            Assert.AreEqual(ReadStatus.Complete, ReadHandle.Status, "Invalid ReadHandle Status");
-
-            var reader = new BByteReader(Buffer.GetUnsafeReadOnlyPtr(), (int)mp4.Read.Size, Allocator.None);
-
-            while (reader.Index + ISOBox.ByteNeeded < reader.Length)
-            {
-                var startOffset = reader.Index;
-
-                var isoBox = reader.ReadISOBox();
-
-                long size;
-                if (isoBox.size >= ISOBox.ByteNeeded)
-                    size = isoBox.size;
-                else if (isoBox.size == 1)
-                    size = (long)reader.ReadUInt64();
-                else if (isoBox.size == 0)
-                    size = mp4.FileSize - mp4.Read.Offset;
-                else
-                {
-                    mp4.Logger.LogError((int)MP4Tag.ReadHeader + 1, $"{MP4Error.InvalidBoxSize}: Invalid box size {isoBox.size} for {isoBox.type}");
-                    mp4.Read.Size = 0;
-                    return;
-                }
-
-                mp4.Logger.Trace(0, $"Start:{mp4.Read.Offset + reader.Index} < End:{mp4.Read.Offset + reader.Length} Type={isoBox.type} Size={size}");
-
-                switch (isoBox.type)
-                {
-                    case ISOBoxType.MOOV:
-                        if (mp4.MOOV.IsValid)
-                        {
-                            mp4.Logger.LogError((int)MP4Tag.ReadHeader + 2, $"{MP4Error.DuplicateBox}: Duplicate {isoBox.type} box detected");
-                            mp4.Read.Size = 0;
-                            return;
-                        }
-
-                        mp4.MOOV.Offset = mp4.Read.Offset;
-                        mp4.MOOV.Length = size;
-                        break;
-                    case ISOBoxType.MDAT:
-                        if (mp4.MDAT.IsValid)
-                        {
-                            mp4.Logger.LogError((int)MP4Tag.ReadHeader + 3, $"{MP4Error.DuplicateBox}: Duplicate {isoBox.type} box detected");
-                            mp4.Read.Size = 0;
-                            return;
-                        }
-
-                        mp4.MDAT.Offset = mp4.Read.Offset;
-                        mp4.MDAT.Length = size;
-                        break;
-                }
-
-                // In case, the size is bigger than int.MaxValue (~4GB which can happen) 
-                reader.Index = (int)math.min(size + startOffset, reader.Length);
-                mp4.Read.Offset += size;
-            }
-
-            mp4.Read.Size = !mp4.MOOV.IsValid || !mp4.MDAT.IsValid
-                ? math.min(Buffer.Length, math.max(mp4.FileSize - mp4.Read.Offset, 0)) : 0;
-
-            ReadHandle.Dispose();
-        }
-    }
-
-
     public enum MP4Tag
     {
-        ReadHeader = 10000,
+        FindRootBox = 10000,
         Parse = 20000,
         AVCCRead = Parse + 132
     }
@@ -170,67 +69,116 @@ namespace MediaFramework.LowLevel.MP4
         MP4
     }
 
-    public unsafe readonly struct MediaHandle
+    public readonly struct MediaHandle
     {
         public static MediaHandle Invalid => new MediaHandle();
 
-        public MediaType Type => m_Type;
+        internal readonly int Index;
+        internal readonly int Version;
 
-        [NativeDisableUnsafePtrRestriction]
-        internal readonly IntPtr m_Data;
-
-        internal readonly MediaType m_Type;
-
-        internal MediaHandle(MediaType type, void* ptr)
+        internal MediaHandle(int index, int version)
         {
-            m_Type = type;
-            m_Data = new IntPtr(ptr);
+            Index = index;
+            Version = version;
         }
     }
 
-    public struct MP4File
+    public struct AVIOContext
     {
         public FileHandle File;
         public long FileSize;
 
+        public ReadCommandArray Commands;
         public ReadCommand Read;
-
-        public FileBlock MOOV, MDAT;
-
-        public JobLogger Logger;
+        public UnsafeArray ReadBuffer;
     }
 
+    public readonly unsafe struct UnsafeArray
+    {
+        public readonly Allocator Allocator;
+        public readonly void* Ptr;
+        public readonly int Length;
+
+        public UnsafeArray(int length, int alignment, Allocator allocator)
+        {
+            Ptr = UnsafeUtility.Malloc(length, alignment, allocator);
+            Length = length;
+            Allocator = allocator;
+        }
+
+        public void Dispose()
+        {
+            if (Allocator == Allocator.Invalid || Allocator == Allocator.None)
+                return;
+
+            UnsafeUtility.Free(Ptr, Allocator);
+        }
+    }
+
+    public unsafe struct UnsafeReference<T> where T : struct
+    {
+        [NativeDisableUnsafePtrRestriction]
+        public void* m_Data;
+
+        public ref T GetReference() => ref UnsafeUtility.AsRef<T>(m_Data);
+
+        public UnsafeReference(ref T data)
+        {
+            m_Data = UnsafeUtility.AddressOf(ref data);
+        }
+
+        public UnsafeReference(void* data)
+        {
+            m_Data = data;
+        }
+    }
+
+    [BurstCompile]
     public struct MP4ParseSystem
     {
-        internal int NextID;
-
-        internal NativeList<IntPtr> FileHandles;
+        internal NativeList<int> m_Versions;
+        internal NativeList<AVIOContext> m_MediaIOs;
+        internal NativeList<MediaType> m_MediaTypes;
+        internal NativeList<IntPtr> m_FileHeaders;
+        internal NativeList<JobLogger> m_Loggers;
 
         public void OnCreate(int size = 8)
         {
-            NextID = 1;
-
-            FileHandles = new NativeList<IntPtr>(size, Allocator.Persistent);
+            m_Versions = new NativeList<int>(size, Allocator.Persistent);
+            m_MediaIOs = new NativeList<AVIOContext>(size, Allocator.Persistent);
+            m_MediaTypes = new NativeList<MediaType>(size, Allocator.Persistent);
+            m_FileHeaders = new NativeList<IntPtr>(size, Allocator.Persistent);
+            m_Loggers = new NativeList<JobLogger>(size, Allocator.Persistent);
         }
 
         public void OnDestroy()
         {
             unsafe
             {
-                foreach (var handle in FileHandles)
+                foreach (var avio in m_MediaIOs)
                 {
-                    var ptr = (MP4File*)handle.ToPointer();
+                    avio.File.Close();
+                    avio.ReadBuffer.Dispose();
+                }
 
-                    ptr->File.Close();
-                    ptr->Logger.Dispose();
-
-                    UnsafeUtility.Free(ptr, Allocator.Persistent);
+                foreach (var handle in m_FileHeaders)
+                {
+                    var ptr = (MP4Context*)handle.ToPointer();
+                    ptr->RawHeader.Dispose();
                 }
             }
 
-            FileHandles.Dispose();
+            foreach (var logger in m_Loggers)
+                logger.Dispose();
+
+            m_Versions.Dispose();
+            m_MediaIOs.Dispose();
+            m_MediaTypes.Dispose();
+            m_FileHeaders.Dispose();
+            m_Loggers.Dispose();
         }
 
+        [NotBurstCompatible]
         public MediaHandle Open(string path)
         {
             FileInfoResult infoResult;
@@ -247,62 +195,109 @@ namespace MediaFramework.LowLevel.MP4
                 return MediaHandle.Invalid;
             }
 
+            var mediaType = MediaType.Unknown;
+            // TODO: Check the file signature if no extension
+            switch (Path.GetExtension(path))
+            {
+                case ".mp4":
+                    mediaType = MediaType.MP4;
+                    break;
+                default:
+                    Debug.LogError($"{MP4Error.FileNotFound}: File not found at path {path}");
+                    return MediaHandle.Invalid;
+            }
+
             var file = AsyncReadManager.OpenFileAsync(path);
             file.JobHandle.Complete();
 
-            return CreateNewHandle(file, infoResult.FileSize);
+            switch (file.Status)
+            {
+                case FileStatus.Pending:
+                    Debug.LogError("InvalidFileStatus: File was Pending");
+                    return MediaHandle.Invalid;
+                case FileStatus.Closed:
+                    Debug.LogError("InvalidFileStatus: File was Closed");
+                    return MediaHandle.Invalid;
+                case FileStatus.OpenFailed:
+                    Debug.LogError("InvalidFileStatus: File was OpenFailed");
+                    return MediaHandle.Invalid;
+            }
+
+            return CreateNewHandle(mediaType, file, infoResult.FileSize);
         }
 
-        public JobHandle Prepare(MediaHandle handle, JobHandle depends = default)
+        public JobHandle ParseMP4(MediaHandle handle, JobHandle depends = default)
         {
-            ref var media = ref AsRef(handle);
+            if (!IsValid(handle))
+            {
+                Debug.LogError("InvalidHandle: Handle is invalid or was closed");
+                return default;
+            }
 
-            var status = media.File.Status;
+            //var media = (MP4Header*)FileHeaders[handle.Index].ToPointer();
+
+            ref var avio = ref m_MediaIOs.ElementAt(handle.Index);
+            ref var logger = ref m_Loggers.ElementAt(handle.Index);
+
+            var status = avio.File.Status;
             if (status == FileStatus.Pending)
             {
-                media.File.JobHandle.Complete();
-                status = media.File.Status;
+                avio.File.JobHandle.Complete();
+                status = avio.File.Status;
             }
 
             switch (status)
             {
                 case FileStatus.Closed:
-                    media.Logger.LogError((int)MP4Tag.ReadHeader + 1, $"{MP4Error.InvalidFileStatus}: Failed to {nameof(MP4ParseSystem)}.{nameof(Prepare)}. Status={status}");
+                    logger.LogError((int)MP4Tag.FindRootBox + 1, $"InvalidFileStatus: File was Closed");
                     return depends;
                 case FileStatus.OpenFailed:
-                    media.Logger.LogError((int)MP4Tag.ReadHeader + 2, $"{MP4Error.InvalidFileStatus}: Failed to {nameof(MP4ParseSystem)}.{nameof(Prepare)}. Status={status}");
+                    logger.LogError((int)MP4Tag.FindRootBox + 2, $"InvalidFileStatus: File was OpenFailed");
                     return depends;
             }
 
-            const int length = 4096;
-
-            var buffer = new NativeArray<byte>(length, Allocator.TempJob, NativeArrayOptions.UninitializedMemory);
-
             unsafe
             {
-                media.Read.Offset = 0;
-                media.Read.Size = math.min(media.FileSize, length);
-                media.Read.Buffer = buffer.GetUnsafePtr();
+                avio.ReadBuffer = new UnsafeArray(4096, 4, Allocator.TempJob);
 
-                var readCommands = new ReadCommandArray();
-                readCommands.CommandCount = 1;
-                readCommands.ReadCommands = &GetUnsafePtr(handle)->Read;
+                avio.Read.Offset = 0;
+                avio.Read.Size = math.min(avio.FileSize, avio.ReadBuffer.Length);
+                avio.Read.Buffer = avio.ReadBuffer.Ptr;
 
+                var avioPtr = (AVIOContext*)UnsafeUtility.AddressOf(ref avio);
+                var loggerPtr = (JobLogger*)UnsafeUtility.AddressOf(ref logger);
+                var mp4Ptr = (MP4Context*)m_FileHeaders.ElementAt(handle.Index).ToPointer();
+
+                avio.Commands.CommandCount = 1;
+                avio.Commands.ReadCommands = &avioPtr->Read;
+
+                ReadHandle readHandle;
                 for (int i = 0; i < 20; i++)
                 {
-                    var readHandle = AsyncReadManager.ReadDeferred(media.File, &readCommands, depends);
+                    readHandle = AsyncReadManager.ReadDeferred(avio.File, &avioPtr->Commands, depends);
 
                     // Weirdly the ReadDeferred dependency is not enough.
                     depends = JobHandle.CombineDependencies(readHandle.JobHandle, depends);
 
-                    depends = new FindRootBox {
+                    depends = new FindRootBoxJob {
                         ReadHandle = readHandle,
-                        MediaHandle = handle,
-                        Buffer = buffer
+                        IOContext = new UnsafeReference<AVIOContext>(avioPtr),
+                        MP4Header = new UnsafeReference<MP4Context>(mp4Ptr),
+                        Logger = new UnsafeReference<JobLogger>(loggerPtr)
                     }.Schedule(depends);
                 }
 
-                depends = buffer.Dispose(depends);
+                depends = new LoadMP4HeaderInMemoryJob {
+                    IOContext = new UnsafeReference<AVIOContext>(avioPtr),
+                    MP4Header = new UnsafeReference<MP4Context>(mp4Ptr),
+                    Logger = new UnsafeReference<JobLogger>(loggerPtr)
+                }.Schedule(depends);
+
+                readHandle = AsyncReadManager.ReadDeferred(avio.File, &avioPtr->Commands, depends);
+
+                depends = JobHandle.CombineDependencies(readHandle.JobHandle, depends);
+
+                // Do the parsing here
             }
 
             return depends;
@@ -318,162 +313,81 @@ namespace MediaFramework.LowLevel.MP4
             return depends;
         }
 
-        public ref JobLogger GetLogs(MediaHandle handle) => ref AsRef(handle).Logger;
-
-        public static unsafe ref MP4File AsRef(MediaHandle handle)
+        public bool IsValid(MediaHandle handle)
         {
-            Assert.IsTrue(handle.m_Data != null && handle.m_Type == MediaType.MP4,
-                $"{MP4Error.InvalidHandle}: Invalid handle argument for {nameof(MP4ParseSystem)}.{nameof(AsRef)}");
-
-            return ref UnsafeUtility.AsRef<MP4File>(handle.m_Data.ToPointer());
+            return handle.Index >= 0 && handle.Index < m_Versions.Length && m_Versions[handle.Index] == handle.Version;
         }
 
-        public static unsafe MP4File* GetUnsafePtr(MediaHandle handle)
+        static MP4Context internal_MP4InvalidHeader = new MP4Context();
+
+        public unsafe ref readonly MP4Context GetHeader(MediaHandle handle)
         {
-            Assert.IsTrue(handle.m_Data != null && handle.m_Type == MediaType.MP4,
-                $"{MP4Error.InvalidHandle}: Invalid handle argument for {nameof(MP4ParseSystem)}.{nameof(GetUnsafePtr)}");
+            Assert.IsTrue(IsValid(handle), "InvalidHandle: Handle is invalid or was closed");
 
-            return (MP4File*)handle.m_Data.ToPointer();
-        }
-
-        internal unsafe MediaHandle CreateNewHandle(in FileHandle file, long fileSize)
-        {
-            var media = (MP4File*)UnsafeUtility.Malloc(sizeof(MP4File), 4, Allocator.Persistent);
-            var handle = new MediaHandle(MediaType.MP4, media);
-
-            UnsafeUtility.MemClear(media, sizeof(MP4File));
-
-            media->File = file;
-            media->FileSize = fileSize;
-            media->MOOV = FileBlock.Invalid;
-            media->MDAT = FileBlock.Invalid;
-
-            media->Logger = new JobLogger(16, Allocator.Persistent);
-
-            FileHandles.Add(handle.m_Data);
-
-            return handle;
-        }
-
-        public unsafe static JobHandle Parse(string path, MP4ParseHandle input, JobHandle depends)
-        {
-            var handle = ScheduleInit(path, input, depends);
-
-            //handle = new MP4ParseBlobJob
-            //{
-            //    Reader = input.Reader,
-            //    Logger = input.Logger,
-            //    Header = input.Header,
-            //    MDAT = input.MDAT
-            //}.Schedule(handle);
-            return handle;
-        }
-
-        public unsafe static JobHandle ScheduleInit(string path, MP4ParseHandle input, JobHandle depends)
-        {
-            FileInfoResult infoResult;
-            AsyncReadManager.GetFileInfo(path, &infoResult).JobHandle.Complete();
-
-            ref var logger = ref input.Logger.AsRef();
-
-            if (infoResult.FileState == FileState.Absent)
+            if (m_MediaTypes[handle.Index] != MediaType.MP4)
             {
-                logger.LogError((int)MP4Tag.ReadHeader, $"{MP4Error.FileNotFound}: File not found at path {path}");
-                return depends;
+                Debug.LogError("InvalidMediaType: Handle is not an MP4");
+                return ref internal_MP4InvalidHeader;
             }
 
-            using var discoveryBuffer = new NativeArray<byte>(4096, Allocator.Temp);
+            return ref UnsafeUtility.AsRef<MP4Context>(m_FileHeaders[handle.Index].ToPointer());
+        }
 
-            ref var reader = ref input.Reader.AsRef();
+        public ref readonly JobLogger GetLogs(MediaHandle handle)
+        { 
+            Assert.IsTrue(IsValid(handle), "InvalidHandle: Handle is invalid or was closed");
 
-            ReadCommand readCommand;
-            readCommand.Buffer = discoveryBuffer.GetUnsafePtr();
-            readCommand.Size = discoveryBuffer.Length;
-            readCommand.Offset = 0;
+            return ref m_Loggers.ElementAt(handle.Index);
+        }
 
-            int boxesFound = 0;
+        public ref readonly AVIOContext GetAVIOContext(MediaHandle handle)
+        {
+            Assert.IsTrue(IsValid(handle), "InvalidHandle: Handle is invalid or was closed");
 
-            while (readCommand.Offset < infoResult.FileSize)
+            return ref m_MediaIOs.ElementAt(handle.Index);
+        }
+
+        public void PrintAll()
+        {
+            foreach (var logger in m_Loggers)
+                logger.Dispose();
+        }
+
+        internal unsafe MediaHandle CreateNewHandle(MediaType mediaType, FileHandle file, long fileSize)
+        {
+            var headerPtr = IntPtr.Zero;
+            switch (mediaType)
             {
-                using var handle = AsyncReadManager.Read(path, &readCommand, 1);
-                handle.JobHandle.Complete();
-                handle.Dispose();
-
-                var isoBox = reader.ReadISOBox();
-
-                long size;
-                if (isoBox.size >= ISOBox.ByteNeeded)
-                {
-                    size = isoBox.size;
-                }
-                else if (isoBox.size == 1)
-                {
-                    size = (long)reader.ReadUInt64();
-                }
-                else if (isoBox.size == 0)
-                {
-                    size = infoResult.FileSize - readCommand.Offset;
-                }
-                else
-                {
-                    logger.LogError((int)MP4Tag.ReadHeader, $"{MP4Error.InvalidBoxSize}: Invalid box size {isoBox.size} for {isoBox.type}");
-                    return depends;
-                }
-
-                switch (isoBox.type)
-                {
-                    case ISOBoxType.MOOV:
-                        {
-                            if (!reader.IsCreated)
-                            {
-                                //FIXME: Check the size is not over filesize
-                                reader = new BByteReader((int)isoBox.size, Allocator.TempJob);
-
-                                ReadCommand readerCommand;
-                                readerCommand.Buffer = reader.GetUnsafePtr();
-                                readerCommand.Size = reader.Length;
-                                readerCommand.Offset = readCommand.Offset;
-
-                                using var readHandle = AsyncReadManager.Read(path, &readerCommand, 1);
-                                readHandle.JobHandle.Complete();
-                                readHandle.Dispose();
-
-                                if (++boxesFound < 2)
-                                    return depends;
-                            }
-                            else
-                            {
-                                logger.LogError((int)MP4Tag.ReadHeader, $"{MP4Error.DuplicateBox}: Duplicate {ISOBoxType.MOOV} box detected");
-                                return depends;
-                            }
-                        }
-                        break;
-                    case ISOBoxType.MDAT:
-                        {
-                            if (!input.MDAT.Value.IsValid)
-                            {
-                                input.MDAT.Value = new FileBlock(readCommand.Offset, size);
-                                if (++boxesFound < 2)
-                                    return depends;
-                            }
-                            else
-                            {
-                                logger.LogError((int)MP4Tag.ReadHeader, $"{MP4Error.DuplicateBox}: Duplicate {ISOBoxType.MDAT} box detected");
-                                return depends;
-                            }
-                        }
-                        break;
-                }
-
-                readCommand.Offset += size;
+                case MediaType.MP4:
+                    headerPtr = new IntPtr(ClearMalloc(sizeof(MP4Context), 4, Allocator.Persistent));
+                    break;
+                default:
+                    return MediaHandle.Invalid;
             }
 
-            if (reader.IsCreated)
-                logger.LogError((int)MP4Tag.ReadHeader, $"{MP4Error.MissingBox}: Missing MDAT box");
-            else
-                logger.LogError((int)MP4Tag.ReadHeader, $"{MP4Error.MissingBox}: Missing MOOV box");
+            Assert.AreNotEqual(IntPtr.Zero, headerPtr, "Header pointer was null during CreateNewHandle");
 
-            return depends;
+            int index = m_Versions.Length;
+
+            m_Versions.Add(1);
+            m_MediaTypes.Add(mediaType);
+            m_FileHeaders.Add(headerPtr);
+
+            m_MediaIOs.Add(new AVIOContext { 
+                File = file,
+                FileSize = fileSize
+            });
+
+            m_Loggers.Add(new JobLogger(16, Allocator.Persistent));
+
+            return new MediaHandle(index, 1);
+        }
+
+        internal unsafe void* ClearMalloc(long size, int alignment, Allocator allocator)
+        {
+            var ptr = UnsafeUtility.Malloc(size, alignment, allocator);
+            UnsafeUtility.MemClear(ptr, size);
+            return ptr;
         }
     }
 }
