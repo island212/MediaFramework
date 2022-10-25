@@ -99,6 +99,13 @@ namespace MediaFramework.LowLevel.MP4
         public readonly void* Ptr;
         public readonly int Length;
 
+        public UnsafeArray(void* ptr, int length, Allocator allocator)
+        {
+            Ptr = ptr;
+            Length = length;
+            Allocator = allocator;
+        }
+
         public UnsafeArray(int length, int alignment, Allocator allocator)
         {
             Ptr = UnsafeUtility.Malloc(length, alignment, allocator);

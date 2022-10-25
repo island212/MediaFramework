@@ -16,7 +16,7 @@ namespace MediaFramework.LowLevel.Codecs
         YUV444 = 3
     }
 
-    public enum AVColorPrimaries
+    public enum ColorPrimaries
     {
         RESERVED0 = 0,
         BT709 = 1,                  ///< also ITU-R BT1361 / IEC 61966-2-4 / SMPTE RP 177 Annex B
@@ -36,7 +36,7 @@ namespace MediaFramework.LowLevel.Codecs
         JEDEC_P22 = EBU3213,
     }
 
-    public enum AVColorTransferCharacteristic
+    public enum ColorTransferCharacteristic
     {
         RESERVED0 = 0,
         BT709 = 1,                  ///< also ITU-R BT1361
@@ -61,7 +61,7 @@ namespace MediaFramework.LowLevel.Codecs
         ARIB_STD_B67 = 18,          ///< ARIB STD-B67, known as "Hybrid log-gamma"
     }
 
-    public enum AVColorSpace
+    public enum ColorMatrix
     {
         RGB = 0,                    ///< order of coefficients is actually GBR, also IEC 61966-2-1 (sRGB), YZX and ST 428-1
         BT709 = 1,                  ///< also ITU-R BT1361 / IEC 61966-2-4 xvYCC709 / derived in SMPTE RP 177 Annex B
@@ -319,9 +319,9 @@ namespace MediaFramework.LowLevel.Codecs
         public uint BitDepth;
         public ScalingMatrix ScalingMatrix;
 
-        public AVColorPrimaries ColourPrimaries;
-        public AVColorTransferCharacteristic TransferCharacteristics;
-        public AVColorSpace MatrixCoefficients;
+        public ColorPrimaries ColourPrimaries;
+        public ColorTransferCharacteristic TransferCharacteristics;
+        public ColorMatrix MatrixCoefficients;
 
         public uint MbWidth, MbHeigth;
         public uint CropLeft, CropRight;
@@ -445,9 +445,9 @@ namespace MediaFramework.LowLevel.Codecs
             Allocator = allocator;
 
             // Default value
-            ColourPrimaries = AVColorPrimaries.UNSPECIFIED;
-            TransferCharacteristics = AVColorTransferCharacteristic.UNSPECIFIED;
-            MatrixCoefficients = AVColorSpace.UNSPECIFIED;
+            ColourPrimaries = ColorPrimaries.UNSPECIFIED;
+            TransferCharacteristics = ColorTransferCharacteristic.UNSPECIFIED;
+            MatrixCoefficients = ColorMatrix.UNSPECIFIED;
 
             ChromaFormat = ChromaSubsampling.YUV420;
             BitDepth = 8;
@@ -769,9 +769,9 @@ namespace MediaFramework.LowLevel.Codecs
                         if ((rError = spsReader.TryReadBits(8, out var matrix_coefficients)) != ReaderError.None)
                             return (SPSError)rError;
 
-                        ColourPrimaries = (AVColorPrimaries)colour_primaries;
-                        TransferCharacteristics = (AVColorTransferCharacteristic)transfer_characteristics;
-                        MatrixCoefficients = (AVColorSpace)matrix_coefficients;
+                        ColourPrimaries = (ColorPrimaries)colour_primaries;
+                        TransferCharacteristics = (ColorTransferCharacteristic)transfer_characteristics;
+                        MatrixCoefficients = (ColorMatrix)matrix_coefficients;
                     }
                 }
 

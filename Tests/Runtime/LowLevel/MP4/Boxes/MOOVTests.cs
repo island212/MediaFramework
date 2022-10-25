@@ -15,13 +15,21 @@ namespace MP4.Boxes
 {
     public class MOOVTests : BoxTestCore
     {
-        protected override void SetUp() { }
+        protected override void SetUp()
+        {
+            context = new MP4Context(Allocator.Temp);
+            logger = new JobLogger(16, Allocator.Temp);
+        }
 
         [Test]
         public unsafe void Read_Valid2Track_AllValueAreEqual()
         {
             fixed (byte* ptr = MOOVBuffer)
             {
+                UnityEngine.Debug.Log($"Allocator {context.Allocator}");
+
+                context.RawHeader = new UnsafeArray(ptr, MOOVBuffer.Length, Allocator.None);
+
                 var reader = new BByteReader(ptr, MOOVBuffer.Length, Allocator.None);
 
                 var moovBox = reader.ReadISOBox();

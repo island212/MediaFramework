@@ -79,9 +79,9 @@ namespace Codecs
             Assert.AreEqual(0, sps.SAR.Denom, "SAR Heigth");
 
             Assert.IsFalse(sps.VideoFullRange, "VideoFullRange");
-            Assert.AreEqual(AVColorPrimaries.BT709, sps.ColourPrimaries, "ColourPrimaries");
-            Assert.AreEqual(AVColorTransferCharacteristic.BT709, sps.TransferCharacteristics, "TransferCharacteristics");
-            Assert.AreEqual(AVColorSpace.BT709, sps.MatrixCoefficients, "MatrixCoefficients");
+            Assert.AreEqual(ColorPrimaries.BT709, sps.ColourPrimaries, "ColourPrimaries");
+            Assert.AreEqual(ColorTransferCharacteristic.BT709, sps.TransferCharacteristics, "TransferCharacteristics");
+            Assert.AreEqual(MediaFramework.LowLevel.Codecs.ColorMatrix.BT709, sps.MatrixCoefficients, "MatrixCoefficients");
 
             Assert.AreEqual(0, sps.ChromaLoc.TopField, "ChromaSampleLocType TopField");
             Assert.AreEqual(0, sps.ChromaLoc.BottomField, "ChromaSampleLocType BottomField");

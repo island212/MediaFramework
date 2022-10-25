@@ -3,6 +3,7 @@ using MediaFramework.LowLevel.MP4;
 using MediaFramework.LowLevel.Unsafe;
 using NUnit.Framework;
 using Unity.Collections;
+using Unity.Collections.LowLevel.Unsafe;
 
 namespace MP4.Boxes
 {
@@ -11,30 +12,32 @@ namespace MP4.Boxes
         protected MP4Context context;
         protected JobLogger logger;
 
-        [OneTimeSetUp]
-        protected virtual void OneTimeSetUp()
-        {
-            context = new MP4Context(Allocator.Temp);
-            logger = new JobLogger(16, Allocator.Temp);
-        }
+        //[OneTimeSetUp]
+        //protected virtual void OneTimeSetUp()
+        //{
+        //    context = new MP4Context(Allocator.Temp);
+        //    logger = new JobLogger(16, Allocator.Temp);
+        //}
 
-        [OneTimeTearDown]
-        protected virtual void OneTimeTearDown()
-        {
-            logger.Dispose();
-            context.Dispose();
-        }
+        //[OneTimeTearDown]
+        //protected virtual void OneTimeTearDown()
+        //{
+        //    logger.Dispose();
+        //    context.Dispose();
+        //}
 
         [SetUp]
         protected virtual void SetUp()
         {
+            context = new MP4Context(Allocator.Temp);
+            logger = new JobLogger(16, Allocator.Temp);
             context.TrackList.Add(new MP4TrackContext());
         }
 
         [TearDown]
         protected virtual void TearDown()
         {
-            logger.Clear();
+            logger.Dispose();
             context.Dispose();
         }
 

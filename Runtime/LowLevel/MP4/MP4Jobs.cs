@@ -10,6 +10,7 @@ using Unity.Mathematics;
 using Unity.Assertions;
 using System.Runtime.ConstrainedExecution;
 using static PlasticPipe.Server.MonitorStats;
+using System.Diagnostics;
 
 namespace MediaFramework.LowLevel.MP4
 {
@@ -59,19 +60,21 @@ namespace MediaFramework.LowLevel.MP4
 
     public enum MediaCodec
     {
-        None = 0,
+        Unspecified = 0,
 
         // Video Codecs
-        H264 = 0x10000,
+        H264,
         H265,
+        AV1,
 
-        PCM = 0x20000,
+        // Audio Codecs
+        PCM = 0x10000,
         AAC
     }
 
     public struct MP4Context : IDisposable
     {
-        public readonly Allocator Allocator;
+        public Allocator Allocator;
 
         public int BoxDepth;
         public FileBlock MOOV, MDAT;
@@ -94,8 +97,18 @@ namespace MediaFramework.LowLevel.MP4
 
         public MP4Context(Allocator allocator)
         {
-            this = default;
             Allocator = allocator;
+
+            BoxDepth = 0;
+            MOOV = new FileBlock(); 
+            MDAT = new FileBlock();
+            CreationTime = new ISODate();
+            ModificationTime = new ISODate();
+            Duration = 0; 
+            Timescale = 0; 
+            NextTrackID = 0;
+            RawHeader = new UnsafeArray();
+
             TrackList = new UnsafeList<MP4TrackContext>(8, allocator);
         }
 
@@ -123,12 +136,19 @@ namespace MediaFramework.LowLevel.MP4
 
         public MediaCodec Codec;
         public uint CodecTag;
-        public ArrayBlock STSDExtra;
 
         // Video
         public uint ReferenceIndex;
         public uint Width, Height;
         public int Depth;
+
+        //public ColorPrimaries ColorPrimaries;
+        //public ColorTransferCharacteristic ColorTransfer;
+        //public ColorMatrix ColorMatrix;
+        //public int FullRange;
+
+        public UnsafeArray CodecExtra;
+
         // Audio
         public int SampleRate;
         public int ChannelCount;
@@ -142,7 +162,7 @@ namespace MediaFramework.LowLevel.MP4
         public SampleArray(int length, Allocator allocator)
         {
             Length = length;
-            Ptr = (T*)UnsafeUtility.Malloc(UnsafeUtility.SizeOf<T>() * length, 
+            Ptr = (T*)UnsafeUtility.Malloc(UnsafeUtility.SizeOf<T>() * length,
                 UnsafeUtility.AlignOf<T>(), allocator);
         }
     }

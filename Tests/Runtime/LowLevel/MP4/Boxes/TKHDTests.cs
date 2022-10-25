@@ -18,7 +18,7 @@ namespace MP4.Boxes
                 var reader = new BByteReader(ptr, tkhdSmallVideoVersion0.Length, Allocator.None);
 
                 var isoBox = reader.ReadISOBox();
-                var error = TKHDBox.Read(ref context, ref reader, ref logger, isoBox);
+                var error = TKHD.Read(ref context, ref reader, ref logger, isoBox);
 
                 PrintLog();
 
@@ -40,7 +40,7 @@ namespace MP4.Boxes
                 var reader = new BByteReader(ptr, tkhdSmallVideoVersion1.Length, Allocator.None);
 
                 var isoBox = reader.ReadISOBox();
-                var error = TKHDBox.Read(ref context, ref reader, ref logger, isoBox);
+                var error = TKHD.Read(ref context, ref reader, ref logger, isoBox);
 
                 PrintLog();
 
@@ -65,7 +65,7 @@ namespace MP4.Boxes
                 var reader = new BByteReader(ptr, tkhdSmallVideoVersion0.Length, Allocator.None);
 
                 var isoBox = reader.ReadISOBox();
-                var error = TKHDBox.Read(ref context, ref reader, ref logger, isoBox);
+                var error = TKHD.Read(ref context, ref reader, ref logger, isoBox);
 
                 Assert.AreEqual(MP4Error.DuplicateBox, error, "Error");
                 Assert.AreEqual(1, logger.Length, "Logger.Length");
@@ -84,7 +84,7 @@ namespace MP4.Boxes
                 var isoBox = reader.ReadISOBox();
                 isoBox.size = 0;
 
-                var error = TKHDBox.Read(ref context, ref reader, ref logger, isoBox);
+                var error = TKHD.Read(ref context, ref reader, ref logger, isoBox);
 
                 Assert.AreEqual(MP4Error.InvalidBoxSize, error, "Error");
                 Assert.AreEqual(1, logger.Length, "Logger.Length");
@@ -101,9 +101,9 @@ namespace MP4.Boxes
                 var reader = new BByteReader(ptr, tkhdSmallVideoVersion0.Length, Allocator.None);
 
                 var isoBox = reader.ReadISOBox();
-                isoBox.size = TKHDBox.Version0 + 2;
+                isoBox.size = TKHD.Version0 + 2;
 
-                var error = TKHDBox.Read(ref context, ref reader, ref logger, isoBox);
+                var error = TKHD.Read(ref context, ref reader, ref logger, isoBox);
 
                 Assert.AreEqual(MP4Error.InvalidBoxSize, error, "Error");
                 Assert.AreEqual(1, logger.Length, "Logger.Length");
@@ -120,9 +120,9 @@ namespace MP4.Boxes
                 var reader = new BByteReader(ptr, tkhdSmallVideoVersion1.Length, Allocator.None);
 
                 var isoBox = reader.ReadISOBox();
-                isoBox.size = TKHDBox.Version1 + 2;
+                isoBox.size = TKHD.Version1 + 2;
 
-                var error = TKHDBox.Read(ref context, ref reader, ref logger, isoBox);
+                var error = TKHD.Read(ref context, ref reader, ref logger, isoBox);
 
                 Assert.AreEqual(MP4Error.InvalidBoxSize, error, "Error");
                 Assert.AreEqual(1, logger.Length, "Logger.Length");
@@ -143,7 +143,7 @@ namespace MP4.Boxes
             var reader = new BByteReader(ptr, tkhdSmallVideoVersion0.Length, Allocator.None);
 
             var isoBox = reader.ReadISOBox();
-            var error = TKHDBox.Read(ref context, ref reader, ref logger, isoBox);
+            var error = TKHD.Read(ref context, ref reader, ref logger, isoBox);
 
             Assert.AreEqual(MP4Error.InvalidBoxVersion, error, "Error");
             Assert.AreEqual(1, logger.Length, "Logger.Length");

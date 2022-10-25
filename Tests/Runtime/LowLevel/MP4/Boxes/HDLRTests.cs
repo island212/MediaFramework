@@ -22,7 +22,7 @@ namespace MP4.Boxes
                 var reader = new BByteReader(ptr, hdlrSmall.Length, Allocator.None);
 
                 var isoBox = reader.ReadISOBox();
-                var error = HDLRBox.Read(ref context, ref reader, ref logger, isoBox);
+                var error = HDLR.Read(ref context, ref reader, ref logger, isoBox);
 
                 PrintLog();
 
@@ -48,7 +48,7 @@ namespace MP4.Boxes
             var isoBox = reader.ReadISOBox();
             isoBox.size = (uint)hdlrSmall.Length + 7;
 
-            var error = HDLRBox.Read(ref context, ref reader, ref logger, isoBox);
+            var error = HDLR.Read(ref context, ref reader, ref logger, isoBox);
 
             PrintLog();
 
@@ -71,7 +71,7 @@ namespace MP4.Boxes
                 var reader = new BByteReader(ptr, hdlrSmall.Length, Allocator.None);
 
                 var isoBox = reader.ReadISOBox();
-                var error = HDLRBox.Read(ref context, ref reader, ref logger, isoBox);
+                var error = HDLR.Read(ref context, ref reader, ref logger, isoBox);
 
                 Assert.AreEqual(MP4Error.DuplicateBox, error, "Error");
                 Assert.AreEqual(1, logger.Length, "Logger.Length");
@@ -88,7 +88,7 @@ namespace MP4.Boxes
                 var isoBox = reader.ReadISOBox();
                 isoBox.size = 0;
 
-                var error = HDLRBox.Read(ref context, ref reader, ref logger, isoBox);
+                var error = HDLR.Read(ref context, ref reader, ref logger, isoBox);
 
                 Assert.AreEqual(MP4Error.InvalidBoxSize, error, "Error");
                 Assert.AreEqual(1, logger.Length, "Logger.Length");

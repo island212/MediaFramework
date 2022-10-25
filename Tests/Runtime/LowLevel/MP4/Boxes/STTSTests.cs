@@ -22,7 +22,7 @@ namespace MP4.Boxes
                 var reader = new BByteReader(ptr, sttsSmallVideo.Length, Allocator.None);
 
                 var isoBox = reader.ReadISOBox();
-                var error = STTSBox.Read(ref context, ref reader, ref logger, isoBox);
+                var error = STTS.Read(ref context, ref reader, ref logger, isoBox);
 
                 PrintLog();
 
@@ -54,7 +54,7 @@ namespace MP4.Boxes
                 var reader = new BByteReader(ptr, sttsSmallVideo.Length, Allocator.None);
 
                 var isoBox = reader.ReadISOBox();
-                var error = STTSBox.Read(ref context, ref reader, ref logger, isoBox);
+                var error = STTS.Read(ref context, ref reader, ref logger, isoBox);
 
                 Assert.AreEqual(MP4Error.DuplicateBox, error, "Error");
                 Assert.AreEqual(1, logger.Length, "Logger.Length");
@@ -73,7 +73,7 @@ namespace MP4.Boxes
                 var isoBox = reader.ReadISOBox();
                 isoBox.size = 0;
 
-                var error = STTSBox.Read(ref context, ref reader, ref logger, isoBox);
+                var error = STTS.Read(ref context, ref reader, ref logger, isoBox);
 
                 Assert.AreEqual(MP4Error.InvalidBoxSize, error, "Error");
                 Assert.AreEqual(1, logger.Length, "Logger.Length");
@@ -90,9 +90,9 @@ namespace MP4.Boxes
                 var reader = new BByteReader(ptr, sttsSmallVideo.Length, Allocator.None);;
 
                 var isoBox = reader.ReadISOBox();
-                isoBox.size += STTSBox.SampleSize;
+                isoBox.size += STTS.SampleSize;
 
-                var error = STTSBox.Read(ref context, ref reader, ref logger, isoBox);
+                var error = STTS.Read(ref context, ref reader, ref logger, isoBox);
 
                 Assert.AreEqual(MP4Error.InvalidEntryCount, error, "Error");
                 Assert.AreEqual(1, logger.Length, "Logger.Length");
@@ -109,9 +109,9 @@ namespace MP4.Boxes
                 var reader = new BByteReader(ptr, sttsSmallVideo.Length, Allocator.None);;
 
                 var isoBox = reader.ReadISOBox();
-                isoBox.size = STTSBox.MinSize + 1;
+                isoBox.size = STTS.MinSize + 1;
 
-                var error = STTSBox.Read(ref context, ref reader, ref logger, isoBox);
+                var error = STTS.Read(ref context, ref reader, ref logger, isoBox);
 
                 Assert.AreEqual(MP4Error.InvalidBoxSize, error, "Error");
                 Assert.AreEqual(1, logger.Length, "Logger.Length");
