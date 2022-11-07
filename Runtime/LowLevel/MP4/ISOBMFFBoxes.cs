@@ -88,6 +88,7 @@ namespace MediaFramework.LowLevel.MP4
                     //case ISOBoxType.COLR: error = COLR.Read(ref context, ref reader, ref logger, isoBox); break;
                     //case ISOBoxType.CLAP: error = CLAP.Read(ref context, ref reader, ref logger, isoBox); break;
                     //case ISOBoxType.PASP: error = PASP.Read(ref context, ref reader, ref logger, isoBox); break;
+                    //case ISOBoxType.ESDS: error = ESDS.Read(ref context, ref reader, ref logger, isoBox); break;
                     case ISOBoxType.STTS: error = STTS.Read(ref context, ref reader, ref logger, isoBox); break;
                     case ISOBoxType.STSC: error = STSC.Read(ref context, ref reader, ref logger, isoBox); break;
                     case ISOBoxType.STCO: error = STCO.Read(ref context, ref reader, ref logger, isoBox); break;
@@ -124,7 +125,7 @@ namespace MediaFramework.LowLevel.MP4
                 _ => MediaCodec.Unspecified
             };
 
-            track.CodecExtra = new UnsafeArray((int)box.size, 4, context.Allocator);
+            track.CodecExtra = new UnsafeArray((int)box.size, 1, context.Allocator);
             unsafe
             {
                 UnsafeUtility.MemCpy(track.CodecExtra.Ptr, (byte*)reader.GetUnsafePtr() + reader.Index - ISOBox.ByteNeeded, box.size);
@@ -203,7 +204,7 @@ namespace MediaFramework.LowLevel.MP4
             track.CodecTag = (uint)box.type;
             reader.Seek(6);
             track.ReferenceIndex = reader.ReadUInt16();
-            reader.Seek(4 * 4); // pre_defined[4]
+            reader.Seek(4 * 4); // pre_defined(32)[4]
             track.Width = reader.ReadUInt16();
             track.Height = reader.ReadUInt16();
             reader.Seek(4); // horizresolution
@@ -218,6 +219,35 @@ namespace MediaFramework.LowLevel.MP4
         }
     }
 
+    public static class AudioSampleEntry
+    {
+        public const int MinSize = 36;
+
+        public static MP4Error Read(ref MP4Context context, ref BByteReader reader, ref JobLogger logger, in ISOBox box)
+        {
+            if (box.size == MinSize)
+            {
+                logger.LogError(context.Tag, $"InvalidBoxSize: {box.type} box minimum size is {MinSize} but was {box.size}");
+                return MP4Error.InvalidBoxSize;
+            }
+
+            ref var track = ref context.LastTrack;
+
+            track.CodecTag = (uint)box.type;
+            reader.Seek(6);
+            track.ReferenceIndex = reader.ReadUInt16();
+            reader.Seek(2); // version
+            reader.Seek(2 * 3); // pre_defined(16)[3]
+            track.ChannelCount = reader.ReadUInt16();
+            track.SampleSize = reader.ReadUInt16();
+            reader.Seek(2); // compression id
+            reader.Seek(2); // packet size
+            track.SampleRate = (int)(reader.ReadUInt32() >> 16);
+
+            return MP4Error.None;
+        }
+    }
+
     /// <summary>
     /// AudioSpecificConfig ISO 14496-3 Section 1.6.2.1
     /// </summary>
@@ -226,9 +256,17 @@ namespace MediaFramework.LowLevel.MP4
         public const int HeaderSize = 12;
         public const int MinSize = 25;
 
+        /// <summary>
+        /// ES_Descriptor ISO 14496-1 Section 7.2.6.5
+        /// </summary>
+        //public unsafe static MP4Error ReadESDescriptor(ref MP4Context context, ref BByteReader reader, ref JobLogger logger)
+        //{ 
+            
+        //}
+
         public unsafe static MP4Error Read(ref MP4Context context, ref BByteReader reader, ref JobLogger logger, in ISOBox box)
         {
-            Assert.AreEqual(ISOBoxType.MVHD, box.type, "ISOBoxType");
+            Assert.AreEqual(ISOBoxType.ESDS, box.type, "ISOBoxType");
 
             if (box.size < MinSize)
             {
@@ -240,7 +278,7 @@ namespace MediaFramework.LowLevel.MP4
 
             reader.Seek(4); // version + flags
 
-            var bitReader = new BBitReader(reader.GetUnsafePtr(), (int)box.size - 12);
+            var bitReader = new BBitReader(reader.GetUnsafePtr(), (int)box.size - HeaderSize);
 
             ReaderError err;
             if ((err = bitReader.TryReadBits(5, out var audioObjectType)) != ReaderError.None)
@@ -251,7 +289,7 @@ namespace MediaFramework.LowLevel.MP4
                 if ((err = bitReader.TryReadBits(6, out var audioObjectTypeExt)) != ReaderError.None)
                     return (MP4Error)err;
 
-                //audioObjectType = 32 + audioObjectTypeExt;
+                audioObjectType = 32 + audioObjectTypeExt;
             }
 
             if ((err = bitReader.TryReadBits(4, out var samplingFrequencyIndex)) != ReaderError.None)
@@ -302,7 +340,7 @@ namespace MediaFramework.LowLevel.MP4
     }
 
     /// <summary>
-    /// AVCDecoderConfigurationRecord ISO/IEC 14496-15:2010(E)
+    /// AVCDecoderConfigurationRecord ISO/IEC 14496-15
     /// </summary>
     public static class AVCC
     {
@@ -432,7 +470,7 @@ namespace MediaFramework.LowLevel.MP4
                     }
 
                     context.CreationTime = reader.ReadUInt32();
-                    context.ModificationTime = reader.ReadUInt32();
+                    reader.Seek(4); // modification time
                     context.Timescale = reader.ReadUInt32();
                     context.Duration = reader.ReadUInt32();
                     break;
@@ -444,7 +482,7 @@ namespace MediaFramework.LowLevel.MP4
                     }
 
                     context.CreationTime = reader.ReadUInt64();
-                    context.ModificationTime = reader.ReadUInt64();
+                    reader.Seek(8); // modification time
                     context.Timescale = reader.ReadUInt32();
                     context.Duration = reader.ReadUInt64();
                     break;
@@ -459,7 +497,7 @@ namespace MediaFramework.LowLevel.MP4
             reader.Seek(4 * 2); // reserved  
             reader.Seek(4 * 9); // matrix
             reader.Seek(4 * 6); // pre_defined 
-            context.NextTrackID = reader.ReadUInt32();
+            reader.Seek(4); // next_track_id
 
             return MP4Error.None;
         }
@@ -471,19 +509,12 @@ namespace MediaFramework.LowLevel.MP4
         {
             Assert.AreEqual(ISOBoxType.TRAK, box.type, "ISOBoxType");
 
-            // We wait until we start reading a track so we can minimize
-            // the chance of resizing the list during the parsing
-            if (!context.TrackList.IsCreated)
-            {
-                var capacity = context.NextTrackID > 0 ? (int)context.NextTrackID - 1 : 2;
-                context.TrackList = new UnsafeList<MP4TrackContext>(capacity, context.Allocator);
-            }
-
             context.TrackList.Add(new MP4TrackContext());
 
             var error = ISOBMFF.Read(ref context, ref reader, ref logger, box);
 
             ref var track = ref context.LastTrack;
+            // Check if the track is valid
 
             return error;
         }
@@ -554,8 +585,8 @@ namespace MediaFramework.LowLevel.MP4
             reader.Seek(2); // volume 
             reader.Seek(2); // reserved
             reader.Seek(4 * 9); // matrix
-            reader.Seek(4); // width
-            reader.Seek(4); // height
+            track.Width = reader.ReadUInt32() >> 16;
+            track.Height = reader.ReadUInt32() >> 16;
 
             return MP4Error.None;
         }
@@ -703,9 +734,19 @@ namespace MediaFramework.LowLevel.MP4
                     }
                     break;
                 case ISOHandler.SOUN:
-                    reader.Seek((int)box.size - 16);
-                    break;
-                default:
+                    for (int i = 0; i < entries; i++)
+                    {
+                        var start = reader.Index;
+                        var isoBox = reader.ReadISOBox();
+                        error = AudioSampleEntry.Read(ref context, ref reader, ref logger, isoBox);
+                        if (error != MP4Error.None)
+                            return error;
+
+                        isoBox.size -= (uint)(reader.Index - start) - ISOBox.ByteNeeded;
+                        error = ISOBMFF.Read(ref context, ref reader, ref logger, isoBox);
+                        if (error != MP4Error.None)
+                            return error;
+                    }
                     break;
             }
 
@@ -915,12 +956,12 @@ namespace MediaFramework.LowLevel.MP4
         }
     }
 
-    // Useful to convert FourCC to HEX
-    // https://www.branah.com/ascii-converter
 
     /// <summary>
     /// FourCC boxes. The value is the FourCC in decimal
     /// </summary>
+    /// Useful to convert FourCC to HEX
+    /// https://www.branah.com/ascii-converter
     public enum ISOBoxType : uint
     {
         BXML = 0x62786D6C,
@@ -933,6 +974,7 @@ namespace MediaFramework.LowLevel.MP4
         EDTS = 0x65647473,
         ELNG = 0x656c6e67,
         ELST = 0x656c7374,
+        ESDS = 0x65736473,
         FECR = 0x66656372,
         FIIN = 0x6669696E,
         FIRE = 0x66697265,
@@ -1024,6 +1066,9 @@ namespace MediaFramework.LowLevel.MP4
         CLAP = 0x636c6170,
         COLR = 0x636f6c72,
         PASP = 0x70617370,
+
+        // AudioSampleEntry
+        MP4A = 0x6d703461,
 
         // 6.2.1 ISO/IEC 14496-12:2015
         // Should not be use anymore but was in previous implementation

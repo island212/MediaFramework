@@ -13,6 +13,7 @@ using System.Net;
 using Unity.Burst;
 using Unity.Entities;
 using static CodiceApp.EventTracking.EventModelSerialization;
+using static UnityEngine.Rendering.VirtualTexturing.Debugging;
 
 namespace MediaFramework.LowLevel.MP4
 {
@@ -93,14 +94,16 @@ namespace MediaFramework.LowLevel.MP4
         public UnsafeArray ReadBuffer;
     }
 
-    public readonly unsafe struct UnsafeArray
+    public unsafe struct UnsafeArray
     {
-        public readonly Allocator Allocator;
-        public readonly void* Ptr;
-        public readonly int Length;
+        public Allocator Allocator;
+        public void* Ptr;
+        public int Length;
 
         public UnsafeArray(void* ptr, int length, Allocator allocator)
         {
+            Assert.AreNotEqual(Allocator.Invalid, allocator, "UnsafeArray can't be allocated using Invalid");
+
             Ptr = ptr;
             Length = length;
             Allocator = allocator;
@@ -115,10 +118,12 @@ namespace MediaFramework.LowLevel.MP4
 
         public void Dispose()
         {
-            if (Allocator == Allocator.Invalid || Allocator == Allocator.None)
-                return;
+            if (Allocator != Allocator.Invalid && Allocator != Allocator.None && Ptr != null)
+                UnsafeUtility.Free(Ptr, Allocator);
 
-            UnsafeUtility.Free(Ptr, Allocator);
+            Allocator = Allocator.Invalid;
+            Ptr = null;
+            Length = 0;
         }
     }
 
@@ -144,9 +149,10 @@ namespace MediaFramework.LowLevel.MP4
     public struct MP4ParseSystem
     {
         internal NativeList<int> m_Versions;
-        internal NativeList<AVIOContext> m_MediaIOs;
         internal NativeList<MediaType> m_MediaTypes;
         internal NativeList<IntPtr> m_FileHeaders;
+        internal NativeList<AVIOContext> m_MediaIOs;
+
         internal NativeList<JobLogger> m_Loggers;
 
         public void OnCreate(int size = 8)
@@ -162,21 +168,23 @@ namespace MediaFramework.LowLevel.MP4
         {
             unsafe
             {
-                foreach (var avio in m_MediaIOs)
+                for (int i = 0; i < m_FileHeaders.Length; i++)
                 {
-                    avio.File.Close();
-                    avio.ReadBuffer.Dispose();
-                }
-
-                foreach (var handle in m_FileHeaders)
-                {
-                    var ptr = (MP4Context*)handle.ToPointer();
-                    ptr->RawHeader.Dispose();
+                    var ptr = (MP4Context*)m_FileHeaders[i].ToPointer();
+                    ptr->Dispose();
                 }
             }
 
-            foreach (var logger in m_Loggers)
-                logger.Dispose();
+            for (int i = 0; i < m_MediaIOs.Length; i++)
+            {
+                m_MediaIOs[i].File.Close();
+                m_MediaIOs[i].ReadBuffer.Dispose();
+            }
+
+            for (int i = 0; i < m_Loggers.Length; i++)
+            {
+                m_Loggers[i].Dispose();
+            }
 
             m_Versions.Dispose();
             m_MediaIOs.Dispose();
@@ -241,8 +249,6 @@ namespace MediaFramework.LowLevel.MP4
                 return default;
             }
 
-            //var media = (MP4Header*)FileHeaders[handle.Index].ToPointer();
-
             ref var avio = ref m_MediaIOs.ElementAt(handle.Index);
             ref var logger = ref m_Loggers.ElementAt(handle.Index);
 
@@ -279,6 +285,8 @@ namespace MediaFramework.LowLevel.MP4
                 avio.Commands.ReadCommands = &avioPtr->Read;
 
                 ReadHandle readHandle;
+                // We try 20 jump to find the MOOV and MDAT
+                // TODO: Implement the case where 20 jumps is not enough
                 for (int i = 0; i < 20; i++)
                 {
                     readHandle = AsyncReadManager.ReadDeferred(avio.File, &avioPtr->Commands, depends);
@@ -304,14 +312,15 @@ namespace MediaFramework.LowLevel.MP4
 
                 depends = JobHandle.CombineDependencies(readHandle.JobHandle, depends);
 
-                // Do the parsing here
+                depends = new ParseMP4Job
+                {
+                    ReadHandle = readHandle,
+                    IOContext = new UnsafeReference<AVIOContext>(avioPtr),
+                    MP4Header = new UnsafeReference<MP4Context>(mp4Ptr),
+                    Logger = new UnsafeReference<JobLogger>(loggerPtr)
+                }.Schedule(depends);
             }
 
-            return depends;
-        }
-
-        public JobHandle CreateDemuxer(MediaHandle handle, JobHandle depends = default)
-        {
             return depends;
         }
 
@@ -357,7 +366,7 @@ namespace MediaFramework.LowLevel.MP4
         public void PrintAll()
         {
             foreach (var logger in m_Loggers)
-                logger.Dispose();
+                logger.PrintAll();
         }
 
         internal unsafe MediaHandle CreateNewHandle(MediaType mediaType, FileHandle file, long fileSize)
@@ -366,7 +375,9 @@ namespace MediaFramework.LowLevel.MP4
             switch (mediaType)
             {
                 case MediaType.MP4:
-                    headerPtr = new IntPtr(ClearMalloc(sizeof(MP4Context), 4, Allocator.Persistent));
+                    var ptr = (MP4Context*)UnsafeUtility.Malloc(sizeof(MP4Context), UnsafeUtility.AlignOf<MP4Context>(), Allocator.Persistent);
+                    *ptr = new MP4Context(Allocator.Persistent);
+                    headerPtr = new IntPtr(ptr);
                     break;
                 default:
                     return MediaHandle.Invalid;
@@ -379,13 +390,11 @@ namespace MediaFramework.LowLevel.MP4
             m_Versions.Add(1);
             m_MediaTypes.Add(mediaType);
             m_FileHeaders.Add(headerPtr);
-
+            m_Loggers.Add(new JobLogger(16, Allocator.Persistent));
             m_MediaIOs.Add(new AVIOContext { 
                 File = file,
                 FileSize = fileSize
             });
-
-            m_Loggers.Add(new JobLogger(16, Allocator.Persistent));
 
             return new MediaHandle(index, 1);
         }

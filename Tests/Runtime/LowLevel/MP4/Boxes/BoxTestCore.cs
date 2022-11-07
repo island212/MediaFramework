@@ -2,8 +2,10 @@
 using MediaFramework.LowLevel.MP4;
 using MediaFramework.LowLevel.Unsafe;
 using NUnit.Framework;
+using NUnit.Framework.Interfaces;
 using Unity.Collections;
 using Unity.Collections.LowLevel.Unsafe;
+using UnityEngine.Rendering.VirtualTexturing;
 
 namespace MP4.Boxes
 {
@@ -37,27 +39,12 @@ namespace MP4.Boxes
         [TearDown]
         protected virtual void TearDown()
         {
+            if (TestContext.CurrentContext.Result.Outcome.Status == TestStatus.Failed)
+            {
+                logger.PrintAll();
+            }
             logger.Dispose();
             context.Dispose();
-        }
-
-        protected void PrintLog()
-        {
-            for (int i = 0; i < logger.Length; i++)
-            {
-                switch (logger.LogTypeAt(i))
-                {
-                    case UnityEngine.LogType.Log:
-                        UnityEngine.Debug.Log($"{logger.LogTagAt(i)} - {logger.MessageAt(i)}");
-                        break;
-                    case UnityEngine.LogType.Warning:
-                        UnityEngine.Debug.LogWarning($"{logger.LogTagAt(i)} - {logger.MessageAt(i)}");
-                        break;
-                    case UnityEngine.LogType.Error:
-                        UnityEngine.Debug.LogError($"{logger.LogTagAt(i)} - {logger.MessageAt(i)}");
-                        break;
-                }
-            }
         }
 
         public readonly static int MOOVIndex = 380040;

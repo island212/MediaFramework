@@ -53,6 +53,9 @@ namespace MediaFramework.LowLevel.Unsafe
             CheckForValidAllocator();
         }
 
+        public BByteReader(UnsafeArray array, Allocator allocator)
+            : this(array.Ptr, array.Length, allocator) { }
+
         public BByteReader(NativeList<byte> list, Allocator allocator)
             : this(list.GetUnsafeReadOnlyPtr(), list.Length, allocator) { }
 

@@ -17,8 +17,6 @@ namespace MP4.Boxes
                 var isoBox = reader.ReadISOBox();
                 var error = STSC.Read(ref context, ref reader, ref logger, isoBox);
 
-                PrintLog();
-
                 Assert.AreEqual(MP4Error.None, error, "Error");
                 Assert.AreEqual(0, logger.Length, "Logger.Length");
 

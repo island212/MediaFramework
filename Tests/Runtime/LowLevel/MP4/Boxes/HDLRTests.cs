@@ -24,8 +24,6 @@ namespace MP4.Boxes
                 var isoBox = reader.ReadISOBox();
                 var error = HDLR.Read(ref context, ref reader, ref logger, isoBox);
 
-                PrintLog();
-
                 Assert.AreEqual(MP4Error.None, error, "Error");
                 Assert.AreEqual(0, logger.Length, "Logger.Length");
 
@@ -49,8 +47,6 @@ namespace MP4.Boxes
             isoBox.size = (uint)hdlrSmall.Length + 7;
 
             var error = HDLR.Read(ref context, ref reader, ref logger, isoBox);
-
-            PrintLog();
 
             Assert.AreEqual(MP4Error.None, error, "Error");
             Assert.AreEqual(0, logger.Length, "Logger.Length");

@@ -80,15 +80,11 @@ namespace MediaFramework.LowLevel.MP4
         public FileBlock MOOV, MDAT;
 
         public ISODate CreationTime;
-        public ISODate ModificationTime;
 
         public ulong Duration;
         public uint Timescale;
-        public uint NextTrackID;
 
         public UnsafeList<MP4TrackContext> TrackList;
-
-        public UnsafeArray RawHeader;
 
         public ref MP4TrackContext LastTrack =>
             ref TrackList.ElementAt(TrackList.Length - 1);
@@ -103,26 +99,23 @@ namespace MediaFramework.LowLevel.MP4
             MOOV = new FileBlock(); 
             MDAT = new FileBlock();
             CreationTime = new ISODate();
-            ModificationTime = new ISODate();
             Duration = 0; 
-            Timescale = 0; 
-            NextTrackID = 0;
-            RawHeader = new UnsafeArray();
+            Timescale = 0;
 
             TrackList = new UnsafeList<MP4TrackContext>(8, allocator);
         }
 
         public void Dispose()
         {
+            for (int i = 0; i < TrackList.Length; i++)
+                TrackList.ElementAt(i).CodecExtra.Dispose();
+
             TrackList.Dispose();
-            RawHeader.Dispose();
         }
     }
 
     public struct MP4TrackContext
     {
-        public MP4Error Error;
-
         public ISOHandler Handler;
         public uint TrackID;
         public uint Timescale;
@@ -147,11 +140,12 @@ namespace MediaFramework.LowLevel.MP4
         //public ColorMatrix ColorMatrix;
         //public int FullRange;
 
-        public UnsafeArray CodecExtra;
-
         // Audio
         public int SampleRate;
         public int ChannelCount;
+        public int SampleSize;
+
+        public UnsafeArray CodecExtra;
     }
 
     public unsafe struct SampleArray<T> where T : unmanaged
@@ -178,11 +172,13 @@ namespace MediaFramework.LowLevel.MP4
 
         public unsafe void Execute()
         {
-            ref var avio = ref IOContext.GetReference();
-            if (avio.Read.Size == 0)
-                return;
-
             Assert.AreEqual(ReadStatus.Complete, ReadHandle.Status, "Invalid ReadHandle Status");
+
+            ReadHandle.Dispose();
+
+            ref var avio = ref IOContext.GetReference();
+            if (avio.Commands.CommandCount == 0)
+                return;
 
             ref var mp4 = ref MP4Header.GetReference();
             ref var logger = ref Logger.GetReference();
@@ -205,7 +201,7 @@ namespace MediaFramework.LowLevel.MP4
                 else
                 {
                     logger.LogError((int)MP4Tag.FindRootBox + 1, $"{MP4Error.InvalidBoxSize}: Invalid box size {isoBox.size} for {isoBox.type}");
-                    avio.Read.Size = 0;
+                    avio.Commands.CommandCount = 0;
                     return;
                 }
 
@@ -217,7 +213,7 @@ namespace MediaFramework.LowLevel.MP4
                         if (mp4.MOOV.IsValid)
                         {
                             logger.LogError((int)MP4Tag.FindRootBox + 2, $"{MP4Error.DuplicateBox}: Duplicate {isoBox.type} box detected");
-                            avio.Read.Size = 0;
+                            avio.Commands.CommandCount = 0;
                             return;
                         }
 
@@ -228,7 +224,7 @@ namespace MediaFramework.LowLevel.MP4
                         if (mp4.MDAT.IsValid)
                         {
                             logger.LogError((int)MP4Tag.FindRootBox + 3, $"{MP4Error.DuplicateBox}: Duplicate {isoBox.type} box detected");
-                            avio.Read.Size = 0;
+                            avio.Commands.CommandCount = 0;
                             return;
                         }
 
@@ -241,14 +237,18 @@ namespace MediaFramework.LowLevel.MP4
                 avio.Read.Offset += size;
             }
 
-            avio.Read.Size = !mp4.MOOV.IsValid || !mp4.MDAT.IsValid
-                ? math.min(avio.ReadBuffer.Length, math.max(avio.FileSize - avio.Read.Offset, 0)) : 0;
-
-            ReadHandle.Dispose();
+            if (!mp4.MOOV.IsValid || !mp4.MDAT.IsValid)
+            {
+                avio.Read.Size = math.min(avio.ReadBuffer.Length, math.max(avio.FileSize - avio.Read.Offset, 0));
+            }
+            else
+            {
+                avio.Commands.CommandCount = 0;
+            }
         }
     }
 
-    [BurstCompile]
+    //[BurstCompile]
     public struct LoadMP4HeaderInMemoryJob : IJob
     {
         public UnsafeReference<AVIOContext> IOContext;
@@ -263,35 +263,62 @@ namespace MediaFramework.LowLevel.MP4
 
             if (logger.Errors > 0 || !mp4.MOOV.IsValid || !mp4.MDAT.IsValid)
             {
-                avio.Read.Size = 0;
+                avio.Commands.CommandCount = 0;
                 return;
             }
 
             if (mp4.MOOV.Length > int.MaxValue)
             {
-                logger.LogError((int)MP4Tag.FindRootBox, $"{MP4Error.OverMaxPolicy}: MP4 header is more than int.MaxValue which is not supported. Size={mp4.MOOV.Length}");
-                avio.Read.Size = 0;
+                logger.LogError((int)MP4Tag.FindRootBox, $"{MP4Error.OverMaxPolicy}: MP4 header size is greater than int.MaxValue which is not supported. Size={mp4.MOOV.Length}");
+                avio.Commands.CommandCount = 0;
                 return;
             }
 
-            mp4.RawHeader = new UnsafeArray((int)mp4.MOOV.Length, 4, Allocator.Persistent);
 
-            avio.Read.Offset = mp4.MOOV.Offset;
-            avio.Read.Size = mp4.MOOV.Length;
-            unsafe { avio.Read.Buffer = mp4.RawHeader.Ptr; }
+            unsafe 
+            {
+                avio.ReadBuffer.Dispose();
+                avio.ReadBuffer = new UnsafeArray((int)mp4.MOOV.Length, 1, Allocator.Persistent);
+
+                avio.Read.Offset = mp4.MOOV.Offset;
+                avio.Read.Size = mp4.MOOV.Length;
+                avio.Read.Buffer = avio.ReadBuffer.Ptr;
+
+                avio.Commands.CommandCount = 1;
+            }
         }
     }
 
-    [BurstCompile]
     public struct ParseMP4Job : IJob
     {
+        public ReadHandle ReadHandle;
+
+        public UnsafeReference<AVIOContext> IOContext;
         public UnsafeReference<MP4Context> MP4Header;
         public UnsafeReference<JobLogger> Logger;
 
-        public void Execute()
+        public unsafe void Execute()
         {
+            Assert.AreEqual(ReadStatus.Complete, ReadHandle.Status, "Invalid ReadHandle Status");
+
+            ReadHandle.Dispose();
+
             ref var mp4 = ref MP4Header.GetReference();
             ref var logger = ref Logger.GetReference();
+            ref var avio = ref IOContext.GetReference();
+
+            if (avio.Commands.CommandCount == 0 && avio.ReadBuffer.Ptr == null)
+                return;
+
+            avio.Commands.CommandCount = 0;
+
+            var reader = new BByteReader(avio.ReadBuffer, Allocator.None);
+
+            var moovBox = reader.ReadISOBox();
+
+            Assert.AreEqual(ISOBoxType.MOOV, moovBox.type, "ISOBoxType");
+
+            var error = ISOBMFF.Read(ref mp4, ref reader, ref logger, moovBox);
         }
     }
 

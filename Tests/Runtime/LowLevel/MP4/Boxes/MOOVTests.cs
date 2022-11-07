@@ -26,37 +26,26 @@ namespace MP4.Boxes
         {
             fixed (byte* ptr = MOOVBuffer)
             {
-                UnityEngine.Debug.Log($"Allocator {context.Allocator}");
-
-                context.RawHeader = new UnsafeArray(ptr, MOOVBuffer.Length, Allocator.None);
-
                 var reader = new BByteReader(ptr, MOOVBuffer.Length, Allocator.None);
 
                 var moovBox = reader.ReadISOBox();
 
                var error = ISOBMFF.Read(ref context, ref reader, ref logger, moovBox);
 
-                PrintLog();
-
                 Assert.AreEqual(MP4Error.None, error, "Error");
                 Assert.AreEqual(0, logger.Length, "Logger.Length");
 
-                //MVHD
-                Assert.AreEqual(501120, context.Duration, "MVHD.Duration");
-                Assert.AreEqual(90000, context.Timescale, "MVHD.Timescale");
-                Assert.AreEqual(3, context.NextTrackID, "MVHD.NextTrackID");
-
-                //TRAK
+                Assert.AreEqual(501120, context.Duration, "context.Duration");
+                Assert.AreEqual(90000, context.Timescale, "context.Timescale");
                 Assert.AreEqual(2, context.TrackList.Length, "Tracks.Length");
 
                 ref var track1 = ref context.TrackList.ElementAt(0);
 
                 Assert.AreEqual(ISOHandler.VIDE, track1.Handler, "track1.Handler"); 
-                Assert.AreEqual(1, track1.TrackID, "track1.TKHD.TrackID");     
-                Assert.AreEqual(498000, track1.Duration, "track1.MDHD.Duration");
-                Assert.AreEqual(90000, track1.Timescale, "track1.MDHD.Timescale");
-                Assert.AreEqual(ISOLanguage.UND, track1.Language, "track1.MDHD.Language");
-                //Assert.AreEqual(385, track1.STSDIndex, "track1.STSD.Index");
+                Assert.AreEqual(1, track1.TrackID, "track1.TrackID");   
+                Assert.AreEqual(498000, track1.Duration, "track1.Duration");
+                Assert.AreEqual(90000, track1.Timescale, "track1.Timescale");
+                Assert.AreEqual(ISOLanguage.UND, track1.Language, "track1.Language");
 
                 Assert.AreEqual(1, track1.STTS.Length, "STTS.Length");
                 Assert.AreEqual(2, track1.STSC.Length, "STSC.Length");
@@ -65,15 +54,14 @@ namespace MP4.Boxes
                 ref var track2 = ref context.TrackList.ElementAt(1);
 
                 Assert.AreEqual(ISOHandler.SOUN, track2.Handler, "track2.Handler");
-                Assert.AreEqual(2, track2.TrackID, "track2.TKHD.TrackID");
-                Assert.AreEqual(267264, track2.Duration, "track2.MDHD.Duration");
-                Assert.AreEqual(48000, track2.Timescale, "track2.MDHD.Timescale");
-                Assert.AreEqual(ISOLanguage.ENG, track2.Language, "track2.MDHD.Language");
-                //Assert.AreEqual(1927, track2.STSDIndex, "track2.STSD.Index");
+                Assert.AreEqual(2, track2.TrackID, "track2.TrackID");
+                Assert.AreEqual(267264, track2.Duration, "track2.Duration");
+                Assert.AreEqual(48000, track2.Timescale, "track2.Timescale");
+                Assert.AreEqual(ISOLanguage.ENG, track2.Language, "track2.Language");
 
-                Assert.AreEqual(1, track2.STTS.Length, "track2.STTS.EntryCount");
-                Assert.AreEqual(2, track2.STSC.Length, "track2.STSC.EntryCount");
-                Assert.AreEqual(38, track2.STCO.Length, "track2.STCO.EntryCount");
+                Assert.AreEqual(1, track2.STTS.Length, "track2.STTS.Length");
+                Assert.AreEqual(2, track2.STSC.Length, "track2.STSC.Length");
+                Assert.AreEqual(38, track2.STCO.Length, "track2.STCO.Length");
 
                 Assert.AreEqual(0, reader.Remains, "Remains");
             }
