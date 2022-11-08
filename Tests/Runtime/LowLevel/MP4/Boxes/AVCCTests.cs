@@ -35,7 +35,7 @@ namespace MP4.Boxes
         //        PrintLog();
 
         //        Assert.AreEqual(MP4Error.None, error, "Error");
-        //        Assert.AreEqual(0, logger.Length, "Logger.Length");
+        //        Assert.AreEqual(0, logger.Errors, "Logger.Errors");
 
         //        ref var video = ref context.LastVideo;
 
@@ -68,7 +68,7 @@ namespace MP4.Boxes
         //        PrintLog();
 
         //        Assert.AreEqual(MP4Error.None, error, "Error");
-        //        Assert.AreEqual(0, logger.Length, "Logger.Length");
+        //        Assert.AreEqual(0, logger.Errors, "Logger.Errors");
 
         //        ref var video = ref context.LastVideo;
 
@@ -103,7 +103,7 @@ namespace MP4.Boxes
         //        var error = AVCCBox.Read(ref context, ref reader, ref logger, isoBox);
 
         //        Assert.AreEqual(MP4Error.DuplicateBox, error, "Error");
-        //        Assert.AreEqual(1, logger.Length, "Logger.Length");
+        //        Assert.AreEqual(1, logger.Errors, "Logger.Errors");
         //        Assert.AreEqual(2, logger.First().tag % 100, "Log.Tag");
         //    }
         //}
@@ -121,7 +121,7 @@ namespace MP4.Boxes
         //        var error = AVCCBox.Read(ref context, ref reader, ref logger, isoBox);
 
         //        Assert.AreEqual(MP4Error.InvalidBoxSize, error, "Error");
-        //        Assert.AreEqual(1, logger.Length, "Logger.Length");
+        //        Assert.AreEqual(1, logger.Errors, "Logger.Errors");
         //        Assert.AreEqual(1, logger.First().tag % 100, "Log.Tag");
         //    }
         //}
@@ -139,7 +139,7 @@ namespace MP4.Boxes
         //        var error = AVCCBox.Read(ref context, ref reader, ref logger, isoBox);
 
         //        Assert.AreEqual(MP4Error.InvalidBoxSize, error, "Error");
-        //        Assert.AreEqual(1, logger.Length, "Logger.Length");
+        //        Assert.AreEqual(1, logger.Errors, "Logger.Errors");
         //        Assert.AreEqual(3, logger.First().tag % 100, "Log.Tag");
         //    }
         //}
@@ -157,7 +157,7 @@ namespace MP4.Boxes
         //        var error = AVCCBox.Read(ref context, ref reader, ref logger, isoBox);
 
         //        Assert.AreEqual(MP4Error.InvalidBoxSize, error, "Error");
-        //        Assert.AreEqual(1, logger.Length, "Logger.Length");
+        //        Assert.AreEqual(1, logger.Errors, "Logger.Errors");
         //        Assert.AreEqual(4, logger.First().tag % 100, "Log.Tag");
         //    }
         //}
@@ -175,7 +175,7 @@ namespace MP4.Boxes
         //        var error = AVCCBox.Read(ref context, ref reader, ref logger, isoBox);
 
         //        Assert.AreEqual(MP4Error.InvalidBoxSize, error, "Error");
-        //        Assert.AreEqual(1, logger.Length, "Logger.Length");
+        //        Assert.AreEqual(1, logger.Errors, "Logger.Errors");
         //        Assert.AreEqual(5, logger.First().tag % 100, "Log.Tag");
         //    }
         //}
@@ -193,7 +193,7 @@ namespace MP4.Boxes
         //        var error = AVCCBox.Read(ref context, ref reader, ref logger, isoBox);
 
         //        Assert.AreEqual(MP4Error.InvalidBoxSize, error, "Error");
-        //        Assert.AreEqual(1, logger.Length, "Logger.Length");
+        //        Assert.AreEqual(1, logger.Errors, "Logger.Errors");
         //        Assert.AreEqual(6, logger.First().tag % 100, "Log.Tag");
         //    }
         //}
@@ -211,7 +211,7 @@ namespace MP4.Boxes
         //        var error = AVCCBox.Read(ref context, ref reader, ref logger, isoBox);
 
         //        Assert.AreEqual(MP4Error.InvalidBoxSize, error, "Error");
-        //        Assert.AreEqual(1, logger.Length, "Logger.Length");
+        //        Assert.AreEqual(1, logger.Errors, "Logger.Errors");
         //        Assert.AreEqual(7, logger.First().tag % 100, "Log.Tag");
         //    }
         //}

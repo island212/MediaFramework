@@ -92,6 +92,7 @@ namespace MediaFramework.LowLevel.MP4
                     case ISOBoxType.STTS: error = STTS.Read(ref context, ref reader, ref logger, isoBox); break;
                     case ISOBoxType.STSC: error = STSC.Read(ref context, ref reader, ref logger, isoBox); break;
                     case ISOBoxType.STCO: error = STCO.Read(ref context, ref reader, ref logger, isoBox); break;
+                    case ISOBoxType.STSZ: error = STSZ.Read(ref context, ref reader, ref logger, isoBox); break;
                     default:
                         reader.Seek((int)isoBox.size - ISOBox.ByteNeeded);
                         break;
@@ -799,7 +800,7 @@ namespace MediaFramework.LowLevel.MP4
                 for (int i = 0; i < length; i++)
                 {
                     // TODO: Validate the data
-                    track.STTS.Ptr[i] = new TimeSample
+                    track.STTS.Samples[i] = new TimeSample
                     {
                         count = reader.ReadUInt32(),
                         delta = reader.ReadUInt32()
@@ -856,7 +857,7 @@ namespace MediaFramework.LowLevel.MP4
                 for (int i = 0; i < length; i++)
                 {
                     // TODO: Validate the data
-                    track.STSC.Ptr[i] = new SampleChunk
+                    track.STSC.Samples[i] = new SampleChunk
                     {
                         firstChunk = reader.ReadUInt32(),
                         samplesPerChunk = reader.ReadUInt32(),
@@ -909,14 +910,74 @@ namespace MediaFramework.LowLevel.MP4
 
             unsafe
             {
-                track.STCO = new SampleArray<ChunkOffset>(length, context.Allocator);
+                track.STCO = new SampleArray<uint>(length, context.Allocator);
                 for (int i = 0; i < length; i++)
                 {
                     // TODO: Validate the data
-                    track.STCO.Ptr[i] = new ChunkOffset
+                    track.STCO.Samples[i] = reader.ReadUInt32();
+                }
+            }
+
+            return MP4Error.None;
+        }
+    }
+
+    public static class STSZ
+    {
+        public const int HeaderSize = 20;
+        public const int SampleSize = 4;
+        public const int MinSize = HeaderSize;
+
+        public static MP4Error Read(ref MP4Context context, ref BByteReader reader, ref JobLogger logger, in ISOBox box)
+        {
+            Assert.AreEqual(ISOBoxType.STSZ, box.type, "ISOBoxType");
+
+            if (box.size < MinSize)
+            {
+                logger.LogError(context.Tag, $"InvalidBoxSize: {box.type} box minimum size is {MinSize} but was {box.size}");
+                return MP4Error.InvalidBoxSize;
+            }
+
+            ref var track = ref context.LastTrack;
+
+            if (track.STSZ.Length != 0)
+            {
+                logger.LogError(context.Tag, $"{MP4Error.DuplicateBox}: Duplicate {box.type} box detected");
+                return MP4Error.DuplicateBox;
+            }
+
+            reader.Seek(4); // version + flags
+            var sampleSize = reader.ReadUInt32();
+            var length = reader.ReadUInt32();
+
+            if (length == 0)
+            {
+                logger.LogError(context.Tag, $"{MP4Error.InvalidEntryCount}: STSZ has 0 entries");
+                return MP4Error.InvalidEntryCount;
+            }
+
+            if (sampleSize == 0 && (box.size - HeaderSize) / SampleSize != length)
+            {
+                logger.LogError(context.Tag, $"{MP4Error.InvalidEntryCount}: STSZ read {length} entries but has only {(box.size - HeaderSize) / SampleSize}");
+                return MP4Error.InvalidEntryCount;
+            }
+
+            if (length > int.MaxValue)
+            {
+                logger.LogError(context.Tag, $"{MP4Error.InvalidEntryCount}: STSZ has too many entries {length}. Max support {int.MaxValue}");
+                return MP4Error.InvalidEntryCount;
+            }
+
+            unsafe
+            {
+                track.STSZ = new SampleSizeBox(sampleSize, (int)length, context.Allocator);
+                if (sampleSize == 0)
+                {
+                    for (int i = 0; i < length; i++)
                     {
-                        value = reader.ReadUInt32()
-                    };
+                        // TODO: Validate the data
+                        track.STSZ.Samples[i] = reader.ReadUInt32();
+                    }
                 }
             }
 

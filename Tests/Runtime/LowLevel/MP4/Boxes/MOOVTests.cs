@@ -33,7 +33,7 @@ namespace MP4.Boxes
                var error = ISOBMFF.Read(ref context, ref reader, ref logger, moovBox);
 
                 Assert.AreEqual(MP4Error.None, error, "Error");
-                Assert.AreEqual(0, logger.Length, "Logger.Length");
+                Assert.AreEqual(0, logger.Errors, "Logger.Errors");
 
                 Assert.AreEqual(501120, context.Duration, "context.Duration");
                 Assert.AreEqual(90000, context.Timescale, "context.Timescale");

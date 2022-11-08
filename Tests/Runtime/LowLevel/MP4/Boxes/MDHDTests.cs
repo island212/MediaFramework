@@ -21,7 +21,7 @@ namespace MP4.Boxes
                 var error = MDHD.Read(ref context, ref reader, ref logger, isoBox);
 
                 Assert.AreEqual(MP4Error.None, error, "Error");
-                Assert.AreEqual(0, logger.Length, "Logger.Length");
+                Assert.AreEqual(0, logger.Errors, "Logger.Errors");
 
                 ref var track = ref context.LastTrack;
 
@@ -43,7 +43,7 @@ namespace MP4.Boxes
                 var error = MDHD.Read(ref context, ref reader, ref logger, isoBox);
 
                 Assert.AreEqual(MP4Error.None, error, "Error");
-                Assert.AreEqual(0, logger.Length, "Logger.Length");
+                Assert.AreEqual(0, logger.Errors, "Logger.Errors");
 
                 ref var track = ref context.LastTrack;
 
@@ -68,7 +68,7 @@ namespace MP4.Boxes
                 var error = MDHD.Read(ref context, ref reader, ref logger, isoBox);
 
                 Assert.AreEqual(MP4Error.DuplicateBox, error, "Error");
-                Assert.AreEqual(1, logger.Length, "Logger.Length");
+                Assert.AreEqual(1, logger.Errors, "Logger.Errors");
             }
         }
 
@@ -87,7 +87,7 @@ namespace MP4.Boxes
                 var error = MDHD.Read(ref context, ref reader, ref logger, isoBox);
 
                 Assert.AreEqual(MP4Error.InvalidBoxSize, error, "Error");
-                Assert.AreEqual(1, logger.Length, "Logger.Length");
+                Assert.AreEqual(1, logger.Errors, "Logger.Errors");
             }
         }
 
@@ -106,7 +106,7 @@ namespace MP4.Boxes
                 var error = MDHD.Read(ref context, ref reader, ref logger, isoBox);
 
                 Assert.AreEqual(MP4Error.InvalidBoxSize, error, "Error");
-                Assert.AreEqual(1, logger.Length, "Logger.Length");
+                Assert.AreEqual(1, logger.Errors, "Logger.Errors");
             }
         }
 
@@ -125,7 +125,7 @@ namespace MP4.Boxes
                 var error = MDHD.Read(ref context, ref reader, ref logger, isoBox);
 
                 Assert.AreEqual(MP4Error.InvalidBoxSize, error, "Error");
-                Assert.AreEqual(1, logger.Length, "Logger.Length");
+                Assert.AreEqual(1, logger.Errors, "Logger.Errors");
             }
         }
 
@@ -146,7 +146,7 @@ namespace MP4.Boxes
             var error = MDHD.Read(ref context, ref reader, ref logger, isoBox);
 
             Assert.AreEqual(MP4Error.InvalidBoxVersion, error, "Error");
-            Assert.AreEqual(1, logger.Length, "Logger.Length");
+            Assert.AreEqual(1, logger.Errors, "Logger.Errors");
         }
 
         static readonly byte[] mdhdSmallVideoVersion0 = {

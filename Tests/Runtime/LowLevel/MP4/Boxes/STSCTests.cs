@@ -18,16 +18,16 @@ namespace MP4.Boxes
                 var error = STSC.Read(ref context, ref reader, ref logger, isoBox);
 
                 Assert.AreEqual(MP4Error.None, error, "Error");
-                Assert.AreEqual(0, logger.Length, "Logger.Length");
+                Assert.AreEqual(0, logger.Errors, "Logger.Errors");
 
                 ref var track = ref context.LastTrack;
 
                 Assert.AreEqual(stscSmallFirstChunk.Length, track.STSC.Length, "STSC.Length");
                 for (int i = 0; i < track.STSC.Length; i++)
                 {
-                    Assert.AreEqual(stscSmallFirstChunk[i], track.STSC.Ptr[i].firstChunk, $"STSC.Ptr[{i}].firstChunk");
-                    Assert.AreEqual(stscSmallSamplePerChunk[i], track.STSC.Ptr[i].samplesPerChunk, $"STSC.Ptr[{i}].samplesPerChunk");
-                    Assert.AreEqual(stscSmallSampleDescriptionIndex[i], track.STSC.Ptr[i].sampleDescriptionIndex, $"STSC.Ptr[{i}].sampleDescriptionIndex");
+                    Assert.AreEqual(stscSmallFirstChunk[i], track.STSC.Samples[i].firstChunk, $"STSC.Ptr[{i}].firstChunk");
+                    Assert.AreEqual(stscSmallSamplePerChunk[i], track.STSC.Samples[i].samplesPerChunk, $"STSC.Ptr[{i}].samplesPerChunk");
+                    Assert.AreEqual(stscSmallSampleDescriptionIndex[i], track.STSC.Samples[i].sampleDescriptionIndex, $"STSC.Ptr[{i}].sampleDescriptionIndex");
                 }
 
                 Assert.AreEqual(0, reader.Remains, "Remains");
@@ -49,7 +49,7 @@ namespace MP4.Boxes
                 var error = STSC.Read(ref context, ref reader, ref logger, isoBox);
 
                 Assert.AreEqual(MP4Error.DuplicateBox, error, "Error");
-                Assert.AreEqual(1, logger.Length, "Logger.Length");
+                Assert.AreEqual(1, logger.Errors, "Logger.Errors");
             }
         }
 
@@ -68,7 +68,7 @@ namespace MP4.Boxes
                 var error = STSC.Read(ref context, ref reader, ref logger, isoBox);
 
                 Assert.AreEqual(MP4Error.InvalidBoxSize, error, "Error");
-                Assert.AreEqual(1, logger.Length, "Logger.Length");
+                Assert.AreEqual(1, logger.Errors, "Logger.Errors");
             }
         }
 
@@ -87,7 +87,7 @@ namespace MP4.Boxes
                 var error = STSC.Read(ref context, ref reader, ref logger, isoBox);
 
                 Assert.AreEqual(MP4Error.InvalidEntryCount, error, "Error");
-                Assert.AreEqual(1, logger.Length, "Logger.Length");
+                Assert.AreEqual(1, logger.Errors, "Logger.Errors");
             }
         }
 
@@ -106,7 +106,7 @@ namespace MP4.Boxes
                 var error = STSC.Read(ref context, ref reader, ref logger, isoBox);
 
                 Assert.AreEqual(MP4Error.InvalidBoxSize, error, "Error");
-                Assert.AreEqual(1, logger.Length, "Logger.Length");
+                Assert.AreEqual(1, logger.Errors, "Logger.Errors");
             }
         }
 

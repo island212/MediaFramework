@@ -70,7 +70,7 @@ namespace MediaFramework.LowLevel.MP4
         MP4
     }
 
-    public readonly struct MediaHandle
+    public readonly struct MediaHandle : IEquatable<MediaHandle>
     {
         public static MediaHandle Invalid => new MediaHandle();
 
@@ -82,6 +82,17 @@ namespace MediaFramework.LowLevel.MP4
             Index = index;
             Version = version;
         }
+
+        public bool Equals(MediaHandle other) => this == other;
+
+        public static bool operator ==(MediaHandle handle1, MediaHandle handle2) 
+            => handle1.Index == handle2.Index && handle1.Version == handle2.Version;
+
+        public static bool operator !=(MediaHandle handle1, MediaHandle handle2) => !(handle1 == handle2);
+
+        public override int GetHashCode() => HashCode.Combine(Index, Version);
+
+        public override bool Equals(object obj) => obj is MediaHandle other && this == other;
     }
 
     public struct AVIOContext
@@ -312,8 +323,7 @@ namespace MediaFramework.LowLevel.MP4
 
                 depends = JobHandle.CombineDependencies(readHandle.JobHandle, depends);
 
-                depends = new ParseMP4Job
-                {
+                depends = new ParseMP4Job {
                     ReadHandle = readHandle,
                     IOContext = new UnsafeReference<AVIOContext>(avioPtr),
                     MP4Header = new UnsafeReference<MP4Context>(mp4Ptr),

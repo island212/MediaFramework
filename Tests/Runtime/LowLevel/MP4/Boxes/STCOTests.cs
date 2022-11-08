@@ -19,15 +19,13 @@ namespace MP4.Boxes
                 var error = STCO.Read(ref context, ref reader, ref logger, isoBox);
 
                 Assert.AreEqual(MP4Error.None, error, "Error");
-                Assert.AreEqual(0, logger.Length, "Logger.Length");
+                Assert.AreEqual(0, logger.Errors, "Logger.Errors");
 
                 ref var track = ref context.LastTrack;
 
-                Assert.AreEqual(stcoChunkOffsets.Length, track.STCO.Length, "STCO.Length");
+                Assert.AreEqual(stcoChunkOffsets.Length, track.STCO.Length, "Length");
                 for (int i = 0; i < track.STCO.Length; i++)
-                {
-                    Assert.AreEqual(stcoChunkOffsets[i], track.STCO.Ptr[i].value, $"STCO.Ptr[{i}]");
-                }
+                    Assert.AreEqual(stcoChunkOffsets[i], track.STCO.Samples[i], $"Samples[{i}]");
 
                 Assert.AreEqual(0, reader.Remains, "Remains");
             }
@@ -48,7 +46,7 @@ namespace MP4.Boxes
                 var error = STCO.Read(ref context, ref reader, ref logger, isoBox);
 
                 Assert.AreEqual(MP4Error.DuplicateBox, error, "Error");
-                Assert.AreEqual(1, logger.Length, "Logger.Length");
+                Assert.AreEqual(1, logger.Errors, "Logger.Errors");
             }
         }
 
@@ -67,7 +65,7 @@ namespace MP4.Boxes
                 var error = STCO.Read(ref context, ref reader, ref logger, isoBox);
 
                 Assert.AreEqual(MP4Error.InvalidBoxSize, error, "Error");
-                Assert.AreEqual(1, logger.Length, "Logger.Length");
+                Assert.AreEqual(1, logger.Errors, "Logger.Errors");
             }
         }
 
@@ -86,7 +84,7 @@ namespace MP4.Boxes
                 var error = STCO.Read(ref context, ref reader, ref logger, isoBox);
 
                 Assert.AreEqual(MP4Error.InvalidEntryCount, error, "Error");
-                Assert.AreEqual(1, logger.Length, "Logger.Length");
+                Assert.AreEqual(1, logger.Errors, "Logger.Errors");
             }
         }
 
@@ -105,7 +103,7 @@ namespace MP4.Boxes
                 var error = STCO.Read(ref context, ref reader, ref logger, isoBox);
 
                 Assert.AreEqual(MP4Error.InvalidBoxSize, error, "Error");
-                Assert.AreEqual(1, logger.Length, "Logger.Length");
+                Assert.AreEqual(1, logger.Errors, "Logger.Errors");
             }
         }
 

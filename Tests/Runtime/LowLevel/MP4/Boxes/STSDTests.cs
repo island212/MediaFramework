@@ -28,7 +28,7 @@ namespace MP4.Boxes
                 var error = STSD.Read(ref context, ref reader, ref logger, isoBox);
 
                 Assert.AreEqual(MP4Error.None, error, "Error");
-                Assert.AreEqual(0, logger.Length, "Logger.Length");
+                Assert.AreEqual(0, logger.Errors, "Logger.Errors");
 
                 ref var track = ref context.LastTrack;
 

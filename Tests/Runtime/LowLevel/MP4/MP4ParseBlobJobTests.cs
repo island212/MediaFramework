@@ -84,7 +84,7 @@ namespace MP4
         //        PrintLog();
 
         //        Assert.IsTrue(header.IsCreated, "Header.IsCreated");
-        //        Assert.AreEqual(0, logger.Length, "Logger.Length");
+        //        Assert.AreEqual(0, logger.Errors, "Logger.Errors");
 
         //        Assert.AreEqual(501120, header.Value.Duration, "Duration");
         //        Assert.AreEqual(90000, header.Value.Timescale, "Timescale");

@@ -32,6 +32,22 @@ namespace MediaFramework.LowLevel.MP4
         public uint value;
     }
 
+    public unsafe struct SampleSizeBox
+    {
+        public uint SampleSize;
+
+        public int Length;
+        public uint* Samples;
+
+        public SampleSizeBox(uint sampleSize, int length, Allocator allocator)
+        {
+            SampleSize = sampleSize;
+            Length = length;
+            Samples = sampleSize == 0 ? (uint*)UnsafeUtility.Malloc(UnsafeUtility.SizeOf<uint>() * length,
+                    UnsafeUtility.AlignOf<uint>(), allocator) : null;
+        }
+    }
+
     public struct ChunkOffset64
     {
         public ulong value;
@@ -124,7 +140,8 @@ namespace MediaFramework.LowLevel.MP4
 
         public SampleArray<TimeSample> STTS;
         public SampleArray<SampleChunk> STSC;
-        public SampleArray<ChunkOffset> STCO;
+        public SampleArray<uint> STCO;
+        public SampleSizeBox STSZ;
         // public SampleArray<ChunkOffset64> CO64;
 
         public MediaCodec Codec;
@@ -151,12 +168,12 @@ namespace MediaFramework.LowLevel.MP4
     public unsafe struct SampleArray<T> where T : unmanaged
     {
         public int Length;
-        public T* Ptr;
+        public T* Samples;
 
         public SampleArray(int length, Allocator allocator)
         {
             Length = length;
-            Ptr = (T*)UnsafeUtility.Malloc(UnsafeUtility.SizeOf<T>() * length,
+            Samples = (T*)UnsafeUtility.Malloc(UnsafeUtility.SizeOf<T>() * length,
                 UnsafeUtility.AlignOf<T>(), allocator);
         }
     }

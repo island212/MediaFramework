@@ -25,15 +25,15 @@ namespace MP4.Boxes
                 var error = STTS.Read(ref context, ref reader, ref logger, isoBox);
 
                 Assert.AreEqual(MP4Error.None, error, "Error");
-                Assert.AreEqual(0, logger.Length, "Logger.Length");
+                Assert.AreEqual(0, logger.Errors, "Logger.Errors");
 
                 ref var track = ref context.LastTrack;
 
                 Assert.AreEqual(sttsSmallSampleCounts.Length, track.STTS.Length, "STTS.Length");
                 for (int i = 0; i < track.STTS.Length; i++)
                 {
-                    Assert.AreEqual(sttsSmallSampleCounts[i], track.STTS.Ptr[i].count, $"STTS.Ptr[{i}].count");
-                    Assert.AreEqual(sttsSmallSampleDelta[i], track.STTS.Ptr[i].delta, $"STTS.Ptr[{i}].delta");
+                    Assert.AreEqual(sttsSmallSampleCounts[i], track.STTS.Samples[i].count, $"STTS.Ptr[{i}].count");
+                    Assert.AreEqual(sttsSmallSampleDelta[i], track.STTS.Samples[i].delta, $"STTS.Ptr[{i}].delta");
                 }
 
                 Assert.AreEqual(0, reader.Remains, "Remains");
@@ -55,7 +55,7 @@ namespace MP4.Boxes
                 var error = STTS.Read(ref context, ref reader, ref logger, isoBox);
 
                 Assert.AreEqual(MP4Error.DuplicateBox, error, "Error");
-                Assert.AreEqual(1, logger.Length, "Logger.Length");
+                Assert.AreEqual(1, logger.Errors, "Logger.Errors");
             }
         }
 
@@ -74,7 +74,7 @@ namespace MP4.Boxes
                 var error = STTS.Read(ref context, ref reader, ref logger, isoBox);
 
                 Assert.AreEqual(MP4Error.InvalidBoxSize, error, "Error");
-                Assert.AreEqual(1, logger.Length, "Logger.Length");
+                Assert.AreEqual(1, logger.Errors, "Logger.Errors");
             }
         }
 
@@ -93,7 +93,7 @@ namespace MP4.Boxes
                 var error = STTS.Read(ref context, ref reader, ref logger, isoBox);
 
                 Assert.AreEqual(MP4Error.InvalidEntryCount, error, "Error");
-                Assert.AreEqual(1, logger.Length, "Logger.Length");
+                Assert.AreEqual(1, logger.Errors, "Logger.Errors");
             }
         }
 
@@ -112,7 +112,7 @@ namespace MP4.Boxes
                 var error = STTS.Read(ref context, ref reader, ref logger, isoBox);
 
                 Assert.AreEqual(MP4Error.InvalidBoxSize, error, "Error");
-                Assert.AreEqual(1, logger.Length, "Logger.Length");
+                Assert.AreEqual(1, logger.Errors, "Logger.Errors");
             }
         }
 
